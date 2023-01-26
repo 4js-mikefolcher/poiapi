@@ -1,0 +1,185 @@
+PACKAGE com.fourjs.poiapi
+IMPORT util
+IMPORT FGL com.fourjs.poiapi.fgl_excel
+
+PUBLIC TYPE TFields RECORD
+	fieldName   STRING,
+	fieldType   STRING
+END RECORD
+
+PUBLIC CONSTANT cExcelSum = "SUM"
+PUBLIC CONSTANT cExcelSubTotal = "SUBTOTAL"
+PUBLIC CONSTANT cExcelAvg = "AVG"
+PUBLIC CONSTANT cExcelNone = "NONE"
+PUBLIC CONSTANT cExcelCount = "COUNTA"
+PUBLIC CONSTANT cExcelMin = "MIN"
+PUBLIC CONSTANT cExcelMax = "MAX"
+
+PUBLIC TYPE TColumnInfo RECORD
+   colTitle STRING,
+   colCalc STRING
+END RECORD
+
+PUBLIC CONSTANT cDataRowType = "DATA"
+PUBLIC CONSTANT cGroupHeaderRowType = "GROUPHEADER"
+PUBLIC CONSTANT cGroupFooterRowType = "GROUPFOOTER"
+
+PUBLIC TYPE TDataRow RECORD
+   rowType STRING,
+   rowData util.JSONObject
+END RECORD
+
+PUBLIC TYPE THeaderRow RECORD
+   group_id STRING,
+   group_title STRING
+END RECORD
+
+PUBLIC FUNCTION getCellStyleForDataType(workbook fgl_excel.workbookType, fglDataType STRING) RETURNS fgl_excel.cellStyleType
+   DEFINE cellStyle fgl_excel.cellStyleType
+
+   LET cellStyle = fgl_excel.style_create(workbook)
+   CALL setCellStyleForDataType(workbook, cellStyle, fglDataType)
+   RETURN cellStyle
+
+END FUNCTION #getCellStyleForDataType
+
+PUBLIC FUNCTION setCellStyleForDataType(workbook fgl_excel.workbookType,
+                                        cellStyle fgl_excel.cellStyleType,
+                                        fglDataType STRING) RETURNS ()
+    CONSTANT cDatetimeFormat = "mm/dd/yyyy hh:mm:ss AM/PM"
+    CONSTANT cDatetimeFormat2 = "hh:mm:ss AM/PM"
+
+    #builds the cell style
+    CASE
+      WHEN fglDataType MATCHES "DEC*"
+         #set decimal style
+         CALL fgl_excel.set_style_format(workbook, cellStyle, createDecFormat(fglDataType))
+      WHEN fglDataType MATCHES "*INT*"
+         #set integer format
+         CALL fgl_excel.set_builtin_style_format(cellStyle, fgl_excel.cIntegerFormat)
+      WHEN fglDataType MATCHES "*MONEY*"
+         #set money format and value
+         CALL fgl_excel.set_builtin_style_format(cellStyle, fgl_excel.cMoneyFormat)
+      WHEN fglDataType MATCHES "*FLOAT*"
+         #Handle floating point Field Formatting
+         CALL fgl_excel.set_builtin_style_format(cellStyle, fgl_excel.cDecimalFormat)
+      WHEN fglDataType == "DATE"
+         #get the date string format and build a cell style from it
+         CALL fgl_excel.set_builtin_style_format(cellStyle, fgl_excel.cDateFormat)
+      WHEN fglDataType MATCHES "DATETIME YEAR*"
+         #get the datetime string format and build a cell style from it
+         CALL fgl_excel.set_style_format(workbook, cellStyle, cDatetimeFormat)
+      WHEN fglDataType MATCHES "DATETIME HOUR*"
+         #get the datetime string format and build a cell style from it
+         CALL fgl_excel.set_style_format(workbook, cellStyle, cDatetimeFormat2)
+
+    END CASE
+
+END FUNCTION #setCellStyleForDataType
+
+PRIVATE FUNCTION createDecFormat(fglDataType STRING) RETURNS STRING
+	DEFINE startPos     INTEGER
+	DEFINE endPos       INTEGER
+	DEFINE decPrecision INTEGER
+	DEFINE decScale     INTEGER
+	DEFINE idx          INTEGER
+	DEFINE numStr       STRING
+	DEFINE currChr      CHAR(1)
+
+	LET startPos = fglDataType.getIndexOf("(", 1)
+	LET endPos = fglDataType.getIndexOf(")", 1)
+
+	FOR idx = startPos + 1 TO fglDataType.getLength()
+		LET currChr = fglDataType.getCharAt(idx)
+		IF currChr MATCHES "[0-9]" THEN
+			LET numStr = numStr.append(currChr)
+		ELSE
+			EXIT FOR
+		END IF
+	END FOR
+
+	LET decPrecision = numStr
+	LET numStr = ""
+
+	FOR idx = endPos - 1 TO 1 STEP -1
+		LET currChr = fglDataType.getCharAt(idx)
+		IF currChr MATCHES "[0-9]" THEN
+			LET numStr = currChr, numStr.trim()
+		ELSE
+			EXIT FOR
+		END IF
+	END FOR
+
+	LET decScale = numStr
+	LET numStr = ""
+
+	IF decPrecision > 3 THEN
+		LET numStr = "#,##0"
+	ELSE
+		LET numStr = "##0"
+	END IF
+
+	IF decScale > 0 THEN
+		LET numStr = numStr.append(".")
+		FOR idx = 1 TO decScale
+			LET numStr = numStr.append("0")
+		END FOR
+	END IF
+
+	#Build a format string of the form "#,##0.00;[Red](#,##0.00)"
+	LET numStr = SFMT("%1;[Red](%1)", numStr)
+	RETURN numStr
+
+END FUNCTION #createDecFormat
+
+PUBLIC FUNCTION datetimeConverter(str STRING) RETURNS DATETIME YEAR TO SECOND
+   DEFINE conValue DATETIME YEAR TO SECOND
+   DEFINE formatList DYNAMIC ARRAY OF STRING = [
+      "%Y-%m-%d %T",
+      "%Y-%m-%d %R",
+      "%Y-%m-%d"
+   ]
+   DEFINE idx INTEGER
+
+   INITIALIZE conValue TO NULL
+   IF str IS NULL THEN
+      RETURN conValue
+   END IF
+
+   FOR idx = 1 TO formatList.getLength()
+      LET conValue = util.Datetime.parse(str, formatList[idx])
+      IF conValue IS NOT NULL THEN
+         RETURN conValue
+      END IF
+   END FOR
+   
+   RETURN conValue
+
+END FUNCTION #datetimeConverter
+
+PUBLIC FUNCTION timeConverter(str STRING) RETURNS DATETIME HOUR TO SECOND
+   DEFINE conValue DATETIME YEAR TO SECOND
+   DEFINE formatList DYNAMIC ARRAY OF STRING = [
+      "%T",
+      "%R"
+   ]
+   DEFINE idx INTEGER
+
+   INITIALIZE conValue TO NULL
+   IF str IS NULL THEN
+      RETURN conValue
+   END IF
+
+   FOR idx = 1 TO formatList.getLength()
+      LET conValue = util.Datetime.parse(str, formatList[idx])
+      IF conValue IS NOT NULL THEN
+         RETURN conValue
+      END IF
+   END FOR
+
+   RETURN conValue
+
+END FUNCTION #timeConverter
+
+
+

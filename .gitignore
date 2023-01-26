@@ -1,0 +1,13 @@
+#File extensions
+*.4pwcfg
+*.4pwdb
+*.4pwvs
+*.42?
+*.log
+.DS_Store
+*.4pdb
+
+#Directories
+bin/
+build/
+com/
