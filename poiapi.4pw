@@ -81,7 +81,7 @@
       <File filePath="src/fgl_excel_api_test.4gl"/>
     </Application>
   </Group>
-  <Group id="-2083336196" label="lib" language="Genero (no link)" targetDirectory="$(ProjectDir)/lib/bin">
+  <Group id="-2083336196" label="lib" language="Genero (no link)" targetDirectory="$(ProjectDir)">
     <Library binaryName="lib" id="437236562" label="lib" targetDirectory="$(ProjectDir)">
       <File filePath="lib/fgl_excel.4gl"/>
       <File filePath="lib/fgl_spreadsheet_api.4gl"/>

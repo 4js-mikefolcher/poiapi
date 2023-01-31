@@ -3,7 +3,6 @@ PACKAGE com.fourjs.poiapi
 IMPORT JAVA java.io.FileOutputStream
 IMPORT JAVA java.io.FileInputStream
 
-
 IMPORT JAVA org.apache.poi.xssf.usermodel.XSSFWorkbook
 IMPORT JAVA org.apache.poi.xssf.usermodel.XSSFSheet
 IMPORT JAVA org.apache.poi.ss.usermodel.Row
@@ -229,7 +228,7 @@ DEFINE s cellStyleType
     CALL c.setCellStyle(s)
 END FUNCTION
 
-FUNCTION cell_style_format_create(w workBookType, fmt STRING) RETURNS (cellStyleType)
+FUNCTION cell_style_format_create(w workbookType, fmt STRING) RETURNS (cellStyleType)
 DEFINE c cellFormat
 DEFINE s cellStyleType
 
@@ -241,7 +240,7 @@ DEFINE s cellStyleType
 
 END FUNCTION
 
-FUNCTION cell_style_builtin_create(w workBookType, fmt SMALLINT) RETURNS (cellStyleType)
+FUNCTION cell_style_builtin_create(w workbookType, fmt SMALLINT) RETURNS (cellStyleType)
 DEFINE s cellStyleType
 
 	LET s = w.createCellStyle()
@@ -251,7 +250,7 @@ DEFINE s cellStyleType
 END FUNCTION
 
 FUNCTION font_create(w)
-DEFINE w workBookType
+DEFINE w workbookType
 DEFINE f fontType
     LET f = w.createFont()
     RETURN f
@@ -274,7 +273,7 @@ END FUNCTION
 
 
 FUNCTION style_create(w)
-DEFINE w workBookType
+DEFINE w workbookType
 DEFINE s cellStyleType
     LET s = w.createCellStyle()
     RETURN s
@@ -334,7 +333,7 @@ CONSTANT SHORT_ONE SMALLINT = 1
     CALL workbook_writeToFile(w, new_filename)
 END FUNCTION
 
-PUBLIC FUNCTION merge_cells(s SheetType, rowIdx INTEGER, startIdx INTEGER, endIdx INTEGER) RETURNS ()
+PUBLIC FUNCTION merge_cells(s sheetType, rowIdx INTEGER, startIdx INTEGER, endIdx INTEGER) RETURNS ()
 
    CALL s.addMergedRegion(cellRangeAddressType.create(rowIdx, rowIdx, startIdx, endIdx))
 

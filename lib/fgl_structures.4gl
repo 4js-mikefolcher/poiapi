@@ -31,7 +31,7 @@ PUBLIC FUNCTION (self TRowStack) addRow(rowIdx INTEGER) RETURNS ()
 
    FOR idx = 1 TO self.currentLevel()
       LET innerIdx = self.rowList[idx].getLength() + 1
-      LET self.rowList[idx][inneridx] = rowIdx + 1
+      LET self.rowList[idx][innerIdx] = rowIdx + 1
    END FOR
 
 END FUNCTION #addRow
