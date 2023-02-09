@@ -189,7 +189,12 @@ PUBLIC FUNCTION (self TSpreadsheet) createSpreadsheet(jsonArray util.JSONArray) 
 								LET cellStyleDict[cellField.fieldType] = cellStyle
 							END IF
 							#set the field data and the style of the cell
-							CALL fgl_excel.cell_date_set(excelCell, jsonObj.get(cellField.fieldName))
+							VAR dateValue = dateConverter(jsonObj.get(cellField.fieldName))
+							VAR dateString = ""
+							IF dateValue IS NOT NULL THEN
+								LET dateString = dateValue USING "yyyy-mm-dd"
+							END IF
+							CALL fgl_excel.cell_date_set(excelCell, dateString)
 							CALL fgl_excel.cell_style_set(excelCell, cellStyle)
 
 						WHEN cellField.fieldType MATCHES "DATETIME YEAR*"

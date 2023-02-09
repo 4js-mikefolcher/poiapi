@@ -181,5 +181,79 @@ PUBLIC FUNCTION timeConverter(str STRING) RETURNS DATETIME HOUR TO SECOND
 
 END FUNCTION #timeConverter
 
+PUBLIC FUNCTION dateConverter(dateValue STRING) RETURNS (DATE)
+   DEFINE dateType DATE
+   DEFINE idx INTEGER
+   DEFINE singleChar CHAR(1)
+   CONSTANT cSlash = "/"
+   CONSTANT cDash = "-"
+
+	IF dateValue IS NULL THEN
+		RETURN NULL
+	END IF
+
+   VAR charFound = FALSE
+   #Determine the format of the string
+   FOR idx = 1 TO dateValue.getLength()
+      LET singleChar = dateValue.getCharAt(idx)
+      IF singleChar == cSlash OR singleChar == cDash THEN
+         LET charFound = TRUE
+         EXIT FOR
+      END IF
+   END FOR
+
+   IF charFound THEN
+      CASE
+         WHEN idx == 5 AND singleChar == cDash
+            #Assume the yyyy-mm-dd format 
+            LET dateType = util.Date.parse(dateValue, "yyyy-mm-dd")
+         WHEN idx == 3 and singleChar == cDash
+            IF isUSADateFormat() THEN
+               #Assume the mm-dd-yyyy format 
+               LET dateType = util.Date.parse(dateValue, "mm-dd-yyyy")
+            ELSE
+               #Assume the dd-mm-yyyy format
+               LET dateType = util.Date.parse(dateValue, "dd-mm-yyyy")
+            END IF
+         WHEN idx == 3 and singleChar == cSlash
+            IF isUSADateFormat() THEN
+               #Assume the mm/dd/yyyy format 
+               LET dateType = util.Date.parse(dateValue, "mm/dd/yyyy")
+            ELSE
+               #Assume the dd/mm/yyyy format 
+               LET dateType = util.Date.parse(dateValue, "dd/mm/yyyy")
+            END IF
+      END CASE
+   ELSE
+      RETURN DATE(dateValue)
+   END IF
+
+   RETURN dateType
+
+END FUNCTION #dateConverter
+
+PRIVATE DEFINE dateFormatUSA SMALLINT = -1
+PRIVATE FUNCTION isUSADateFormat() RETURNS (BOOLEAN)
+
+   IF dateFormatUSA > -1 THEN
+      RETURN (dateFormatUSA == 1)
+   END IF
+
+   VAR dbDateValue = FGL_GETENV("DBDATE")
+   IF dbDateValue IS NULL OR dbDateValue.getLength() == 0 THEN
+      #Assume the USA date format if DBDATE is not set
+      LET dateFormatUSA = 1
+   ELSE
+      IF dbDateValue MATCHES "MD*" THEN
+         LET dateFormatUSA = 1
+      ELSE
+         LET dateFormatUSA = 0
+      END IF
+   END IF
+
+   RETURN (dateFormatUSA == 1)
+
+END FUNCTION #isUSADateFormat
+
 
 

@@ -604,6 +604,10 @@ PRIVATE FUNCTION setDataCell(workbook fgl_excel.workbookType, excelCell fgl_exce
 
       WHEN fieldType == "DATE"
          #set the field data and the style of the cell
+			IF cellValue IS NOT NULL THEN
+				VAR dateValue = dateConverter(cellValue)
+				LET cellValue = dateValue USING "yyyy-mm-dd"
+			END IF
          CALL fgl_excel.cell_date_set(excelCell, cellValue)
          CALL fgl_excel.cell_style_set(excelCell, cellStyle)
 

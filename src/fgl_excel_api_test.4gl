@@ -1,27 +1,31 @@
 IMPORT util
 IMPORT os
+IMPORT security
+
 IMPORT FGL com.fourjs.poiapi.fgl_spreadsheet_api
 IMPORT FGL com.fourjs.poiapi.fgl_spreadsheet_xapi
 IMPORT FGL com.fourjs.poiapi.fgl_spreadsheet_helper
+IMPORT FGL com.fourjs.poiapi.fgl_table_export
 
-TYPE TData RECORD
+PRIVATE TYPE TData RECORD
 	stringField STRING,
-    numericString STRING,
+	numericString STRING,
 	moneyField MONEY(12,2),
 	decimalField DECIMAL(8,4),
 	integerField INTEGER,
 	smallintField SMALLINT,
 	dateField DATE,
 	datetimeField DATETIME YEAR TO SECOND,
-    datetimeField2 DATETIME YEAR TO MINUTE,
-    datetimeField3 DATETIME HOUR TO SECOND,
-    datetimeField4 DATETIME HOUR TO MINUTE,
+	datetimeField2 DATETIME YEAR TO MINUTE,
+	datetimeField3 DATETIME HOUR TO SECOND,
+	datetimeField4 DATETIME HOUR TO MINUTE,
 	charField CHAR(35),
 	varcharField VARCHAR(100),
 	floatField FLOAT,
 	smallfloatField SMALLFLOAT,
 	booleanField BOOLEAN
 END RECORD
+
 DEFINE dataList DYNAMIC ARRAY OF TData
 DEFINE dataRec TData
 
@@ -34,28 +38,30 @@ PRIVATE TYPE TEarnings RECORD
     net_earn   DECIMAL(12,2)
 END RECORD
 
+PRIVATE TYPE TMenu RECORD
+	menu_function STRING,
+	menu_descript STRING,
+	menu_id       INTEGER
+END RECORD
+
+PRIVATE DEFINE interactiveMode STRING = "web"
+
 MAIN
 	DEFINE idx INTEGER
-	DEFINE excelHandler fgl_spreadsheet_api.TSpreadsheet
 
 	CALL STARTLOG("fgl_excel_api_test.log")
-    IF os.Path.separator() == "/" THEN
-        RUN "env > env.txt"
-    ELSE
-        RUN "set > env.txt"
-    END IF
 
 	FOR idx = 1 TO 100
 		LET dataRec.stringField = SFMT("Row #%1", idx)
-        LET dataRec.numericString = idx USING "&&&&&&&&&"
+		LET dataRec.numericString = idx USING "&&&&&&&&&"
 		LET dataRec.charField = SFMT("%1 x %1 y %1 z %1", idx)
 		LET dataRec.varcharField = SFMT("'%1' '%1' '%1' '%1'", ASCII(idx + 32))
 		LET dataRec.booleanField = idx MOD 2
 		LET dataRec.dateField = TODAY - idx UNITS DAY
 		LET dataRec.datetimeField = CURRENT YEAR TO SECOND
-        LET dataRec.datetimeField2 = CURRENT YEAR TO MINUTE
-        LET dataRec.datetimeField3 = CURRENT HOUR TO SECOND
-        LET dataRec.datetimeField4 = CURRENT HOUR TO MINUTE
+		LET dataRec.datetimeField2 = CURRENT YEAR TO MINUTE
+		LET dataRec.datetimeField3 = CURRENT HOUR TO SECOND
+		LET dataRec.datetimeField4 = CURRENT HOUR TO MINUTE
 		IF dataRec.booleanField THEN
 			#odd
 			LET dataRec.smallintField = -1 * idx
@@ -73,29 +79,84 @@ MAIN
 			LET dataRec.moneyField = 11.9 * idx
 			LET dataRec.decimalField = 13.3954 * idx
 		END IF
-        IF idx MOD 11 == 0 THEN
-            LET dataRec.dateField = NULL
-            LET dataRec.datetimeField = NULL
-            LET dataRec.datetimeField2 = NULL
-            LET dataRec.datetimeField3 = NULL
-            LET dataRec.datetimeField4 = NULL
-        END IF
+		IF idx MOD 11 == 0 THEN
+			LET dataRec.dateField = NULL
+			LET dataRec.datetimeField = NULL
+			LET dataRec.datetimeField2 = NULL
+			LET dataRec.datetimeField3 = NULL
+			LET dataRec.datetimeField4 = NULL
+		END IF
 		LET dataList[idx] = dataRec
 	END FOR
 
-   CALL excelAPIExample()
-   IF int_flag THEN
-       RETURN
-   END IF
-   
-   CALL excelXAPIExample()
-   IF int_flag THEN
-       RETURN
-   END IF
-
-   CALL excelMultisheetExample()
+	CALL displayMenuTable()
 
 END MAIN
+
+PRIVATE FUNCTION displayMenuTable() RETURNS ()
+	DEFINE menuList DYNAMIC ARRAY OF TMenu
+	DEFINE idx INTEGER
+
+	LET idx = 1
+	LET menuList[idx].menu_id = idx
+	LET menuList[idx].menu_function = "excelAPIExample()"
+	LET menuList[idx].menu_descript = "Function to test the TSpreadsheet API"
+
+	LET idx = 2
+	LET menuList[idx].menu_id = idx
+	LET menuList[idx].menu_function = "excelXAPIExample()"
+	LET menuList[idx].menu_descript = "Function to test the TSpreadsheetXtend API"
+
+	LET idx = 3
+	LET menuList[idx].menu_id = idx
+	LET menuList[idx].menu_function = "excelMultisheetExample()"
+	LET menuList[idx].menu_descript = "Function to test multisheet capabilities of the TSpreadsheetXtend API"
+
+	LET idx = 4
+	LET menuList[idx].menu_id = idx
+	LET menuList[idx].menu_function = "excelTable()"
+	LET menuList[idx].menu_descript = "Function to test the Export to Excel UI Table API w/o Totals"
+
+	LET idx = 5
+	LET menuList[idx].menu_id = idx
+	LET menuList[idx].menu_function = "xtendExcelTable()"
+	LET menuList[idx].menu_descript = "Function to test the Export to Excel UI Table API with Aggregate Totals"
+
+	OPEN WINDOW mainWindow WITH FORM "fgl_excel_menu_table"
+
+	DISPLAY ARRAY menuList TO s_menu.*
+
+		ON ACTION export_to_excel ATTRIBUTES(TEXT="Export to Excel")
+			VAR filename = tableExcelExport("s_menu", util.JSONArray.fromFGL(menuList))
+			DISPLAY filename
+			CALL fgl_putfile(filename, "gbc")
+
+		ON ACTION CANCEL
+			LET int_flag = TRUE
+			EXIT DISPLAY
+
+		AFTER DISPLAY
+			LET idx = arr_curr()
+			CASE idx
+				WHEN 1
+					CALL excelAPIExample()
+				WHEN 2
+					CALL excelXAPIExample()
+				WHEN 3
+					CALL excelMultisheetExample()
+				WHEN 4
+					CALL excelTable()
+				WHEN 5
+					CALL xtendExcelTable()
+			END CASE
+			LET int_flag = FALSE
+			CONTINUE DISPLAY
+
+	END DISPLAY
+
+	CLOSE WINDOW mainWindow
+
+END FUNCTION #displayMenuTable
 
 PRIVATE FUNCTION excelAPIExample() RETURNS ()
 	DEFINE excelHandler fgl_spreadsheet_api.TSpreadsheet
@@ -106,18 +167,8 @@ PRIVATE FUNCTION excelAPIExample() RETURNS ()
 	CALL excelHandler.setRecordDefinition(base.TypeInfo.create(dataRec))
 	CALL excelHandler.setTitle("Test Spreadsheet API")
 	IF excelHandler.createSpreadsheet(util.JSONArray.fromFGL(dataList)) THEN
+		CALL displayFile(excelHandler.getFilename())
 		DISPLAY SFMT("Excel file path: %1", excelHandler.getFilename())
-		IF arg_val(1) == "web" THEN
-			MENU "API 1 Example"
-                COMMAND "Download"
-                    CALL fgl_putfile(excelHandler.getFilename(), "gbc")
-                COMMAND "Next"
-                    EXIT MENU
-                COMMAND "Exit"
-                    LET int_flag = TRUE
-                    EXIT MENU
-			END MENU
-		END IF
 	END IF
 
 END FUNCTION
@@ -125,16 +176,16 @@ END FUNCTION
 PRIVATE FUNCTION excelHeader() RETURNS DYNAMIC ARRAY OF STRING
 	DEFINE headerList DYNAMIC ARRAY OF STRING = [
 		"String",
-        "Numeric String",
+		"Numeric String",
 		"Money",
 		"Decimal",
 		"Integer",
 		"Small Integer",
 		"Date",
 		"Datetime Year to Second",
-        "Datetime Year to Minute",
-        "Datetime Hour to Second",
-        "Datetime Hour to Minute",
+		"Datetime Year to Minute",
+		"Datetime Hour to Second",
+		"Datetime Hour to Minute",
 		"Char",
 		"Varchar",
 		"Float",
@@ -189,17 +240,7 @@ PRIVATE FUNCTION excelXAPIExample() RETURNS ()
 
 	IF excelHandler.createSpreadsheet() THEN
 		DISPLAY SFMT("Excel file path: %1", excelHandler.getFilename())
-		IF arg_val(1) == "web" THEN
-			MENU "API 2 Example"
-                COMMAND "Download"
-                   CALL fgl_putfile(excelHandler.getFilename(), "gbc")
-                COMMAND "Next"
-                    EXIT MENU
-                COMMAND "Exit"
-                    LET int_flag = TRUE
-                    EXIT MENU
-			END MENU
-		END IF
+		CALL displayFile(excelHandler.getFilename())
 	END IF
 
 END FUNCTION
@@ -231,16 +272,8 @@ PRIVATE FUNCTION excelMultisheetExample() RETURNS ()
 
     CALL excelHandler.createFile()
 
-    DISPLAY SFMT("Excel file path: %1", excelHandler.getFilename())
-    IF arg_val(1) == "web" THEN
-        MENU "Multisheet Example"
-            COMMAND "Download"
-               CALL fgl_putfile(excelHandler.getFilename(), "gbc")
-            COMMAND "Exit"
-                LET int_flag = TRUE
-                EXIT MENU
-        END MENU
-    END IF
+	 DISPLAY SFMT("Excel file path: %1", excelHandler.getFilename())
+	 CALL displayFile(excelHandler.getFilename())
 
 END FUNCTION
 
@@ -439,3 +472,93 @@ PRIVATE FUNCTION getLastName(idx INTEGER) RETURNS (STRING)
     RETURN lastNameList[nameIdx]
 
 END FUNCTION
+
+PRIVATE FUNCTION excelTable() RETURNS ()
+
+	OPEN WINDOW excelTableWindow WITH FORM "fgl_excel_form"
+
+	DISPLAY ARRAY dataList TO s_table.*
+
+		ON ACTION CANCEL
+			EXIT DISPLAY
+
+		ON ACTION export_to_excel ATTRIBUTES(TEXT="Export to Excel")
+			VAR filename = tableExcelExport("s_table", util.JSONArray.fromFGL(dataList))
+			DISPLAY filename
+			CALL displayFile(filename)
+
+		AFTER DISPLAY
+			CONTINUE DISPLAY
+
+	END DISPLAY
+
+	CLOSE WINDOW excelTableWindow
+
+END FUNCTION #excelTable
+
+PRIVATE FUNCTION xtendExcelTable() RETURNS ()
+
+	TYPE TXtendData RECORD
+		indexField INTEGER,
+		stringField STRING,
+		numericString STRING,
+		moneyField MONEY(12,2),
+		decimalField DECIMAL(8,4),
+		integerField INTEGER,
+		smallintField SMALLINT,
+		dateField DATE,
+		datetimeField DATETIME YEAR TO SECOND,
+		datetimeField2 DATETIME YEAR TO MINUTE,
+		datetimeField3 DATETIME HOUR TO SECOND,
+		datetimeField4 DATETIME HOUR TO MINUTE,
+		charField CHAR(35),
+		varcharField VARCHAR(100),
+		floatField FLOAT,
+		smallfloatField SMALLFLOAT,
+		booleanField BOOLEAN,
+		uuidField STRING
+	END RECORD
+	DEFINE xtendList DYNAMIC ARRAY OF TXtendData
+	DEFINE idx INTEGER
+
+	FOR idx = 1 TO dataList.getLength()
+		VAR jsonObj = util.JSONObject.fromFGL(dataList[idx])
+		CALL jsonObj.toFGL(xtendList[idx])
+		LET xtendList[idx].indexField = idx
+		LET xtendList[idx].uuidField = security.RandomGenerator.CreateUUIDString()
+	END FOR
+
+	OPEN WINDOW xtendExcelWindow WITH FORM "fgl_excel_form_xtend"
+
+	DISPLAY ARRAY xtendList TO s_xtend.*
+
+		ON ACTION CANCEL
+			EXIT DISPLAY
+
+		ON ACTION export_to_excel ATTRIBUTES(TEXT="Export to Excel")
+			VAR filename = tableExcelExport("s_xtend", util.JSONArray.fromFGL(xtendList))
+			DISPLAY filename
+			CALL displayFile(filename)
+
+		AFTER DISPLAY
+			CONTINUE DISPLAY
+
+	END DISPLAY
+
+	CLOSE WINDOW xtendExcelWindow
+
+END FUNCTION #xtendExcelTable
+
+PRIVATE FUNCTION displayFile(excelFilename STRING) RETURNS ()
+
+	CASE interactiveMode
+		WHEN "web"
+			CALL fgl_putfile(excelFilename, "gbc")
+		WHEN "desktop"
+			VAR clientFilename = os.Path.baseName(excelFilename)
+			CALL fgl_putfile(excelFilename, clientFilename)
+		OTHERWISE
+			DISPLAY SFMT("Excel file created: %1", excelFilename)
+	END CASE
+
+END FUNCTION #displayFile

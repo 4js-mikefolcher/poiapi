@@ -79,6 +79,9 @@
     <Application binaryName="fgl_excel_api_test" id="792327744" label="fgl_excel_api_test" targetDirectory="$(ProjectDir)/bin">
       <Configuration commandLineArguments="web" id="295160032" label="fgl_excel_api_test"/>
       <File filePath="src/fgl_excel_api_test.4gl"/>
+      <File filePath="src/fgl_excel_form.per"/>
+      <File filePath="src/fgl_excel_form_xtend.per"/>
+      <File filePath="src/fgl_excel_menu_table.per"/>
     </Application>
   </Group>
   <Group id="-2083336196" label="lib" language="Genero (no link)" targetDirectory="$(ProjectDir)">
@@ -89,6 +92,7 @@
       <File filePath="lib/fgl_spreadsheet_interface.4gl"/>
       <File filePath="lib/fgl_spreadsheet_xapi.4gl"/>
       <File filePath="lib/fgl_structures.4gl"/>
+      <File filePath="lib/fgl_table_export.4gl"/>
       <File filePath="lib/package.xml"/>
     </Library>
   </Group>

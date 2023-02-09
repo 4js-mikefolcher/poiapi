@@ -1,0 +1,27 @@
+LAYOUT (TEXT="Excel Test Menu")
+	VBOX
+		TABLE
+{
+ Menu Option    Description
+[fld001       ][fld002                    ]
+[fld001       ][fld002                    ]
+[fld001       ][fld002                    ]
+[fld001       ][fld002                    ]
+}
+		END --TABLE
+	END --VBOX
+END --LAYOUT
+
+ATTRIBUTES
+
+	EDIT fld001 = formonly.menu_function, SCROLL;
+	EDIT fld002 = formonly.menu_description, SCROLL;
+	PHANTOM formonly.menu_id TYPE INTEGER;
+
+END --ATTRIBUTES
+
+INSTRUCTIONS
+
+	SCREEN RECORD s_menu(formonly.menu_function, formonly.menu_description, formonly.menu_id);
+
+END --INSTRUCTIONS

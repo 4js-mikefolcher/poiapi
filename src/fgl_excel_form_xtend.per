@@ -1,0 +1,68 @@
+LAYOUT (TEXT="Extended Excel Export Table")
+	VBOX
+		TABLE
+{
+[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016]
+[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016]
+[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016]
+[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016]
+[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016]
+[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016]
+[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016]
+[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016]
+[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016]
+[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016]
+[tot001     ]             [tot003         |tot004       ]                                                                                                                  [tot014   |tot015     ]
+}
+		END --TABLE
+	END --VBOX
+END --LAYOUT
+
+ATTRIBUTES
+
+	PHANTOM formonly.indexField TYPE INTEGER;
+	EDIT fld001 = formonly.stringField TYPE VARCHAR, TITLE="String", SCROLL;
+	EDIT fld002 = formonly.numericString TYPE VARCHAR, TITLE="Numeric String", SCROLL;
+	EDIT fld003 = formonly.moneyField TYPE MONEY, TITLE="Money", SCROLL;
+	EDIT fld004 = formonly.decimalField TYPE DECIMAL, TITLE="Decimal", SCROLL;
+	EDIT fld005 = formonly.integerField TYPE INTEGER, TITLE="Integer", SCROLL;
+	EDIT fld006 = formonly.smallintField TYPE SMALLINT, TITLE="Small Integer", SCROLL;
+	EDIT fld007 = formonly.dateField TYPE DATE, TITLE="Date", SCROLL;
+	EDIT fld008 = formonly.datetimeField TYPE DATETIME YEAR TO SECOND, TITLE="Datetime Year to Second", SCROLL;
+	EDIT fld009 = formonly.datetimeField2 TYPE DATETIME YEAR TO MINUTE, TITLE="Datetime Year to Minute", SCROLL;
+	EDIT fld010 = formonly.datetimeField3 TYPE DATETIME HOUR TO SECOND, TITLE="Datetime Hour to Second", SCROLL;
+	EDIT fld011 = formonly.datetimeField4 TYPE DATETIME HOUR TO MINUTE, TITLE="Datetime Hour to Minute", SCROLL;
+	EDIT fld012 = formonly.charField TYPE CHAR, TITLE="Char", SCROLL;
+	EDIT fld013 = formonly.varcharField TYPE VARCHAR, TITLE="Varchar", SCROLL;
+	EDIT fld014 = formonly.floatField TYPE FLOAT, TITLE="Float", SCROLL;
+	EDIT fld015 = formonly.smallfloatField TYPE SMALLFLOAT, TITLE="Small Float", SCROLL;
+	EDIT fld016 = formonly.booleanField TYPE BOOLEAN, TITLE="Boolean", SCROLL;
+	PHANTOM formonly.uuidField TYPE VARCHAR;
+
+	AGGREGATE tot001 = formonly.countField,
+                       AGGREGATETYPE = COUNT;
+
+	AGGREGATE tot003 = formonly.sumMoneyField,
+                       AGGREGATETEXT = "Total:",
+                       AGGREGATETYPE = SUM;
+
+	AGGREGATE tot004 = formonly.sumDecimalField,
+                       AGGREGATETEXT = "Total:",
+                       AGGREGATETYPE = SUM;
+
+	AGGREGATE tot014 = formonly.sumSmallFloatField,
+                       AGGREGATETEXT = "Total:",
+                       AGGREGATETYPE = SUM;
+
+	AGGREGATE tot015 = formonly.sumFloatField,
+                       AGGREGATETEXT = "Total:",
+                       AGGREGATETYPE = SUM;
+
+END --ATTRIBUTES
+
+INSTRUCTIONS
+
+	--SCREEN RECORD s_table (formonly.stringField THRU formonly.booleanField);
+	SCREEN RECORD s_xtend (formonly.indexField THRU formonly.uuidField);
+
+END --INSTRUCTIONS
