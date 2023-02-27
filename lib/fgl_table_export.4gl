@@ -10,7 +10,7 @@ PRIVATE TYPE TColumnMetaInfo RECORD
 	colName  	STRING,
 	colIdx   	INTEGER,
 	colPosition INTEGER,
-	colHidden   INTEGER,
+	colHidden   BOOLEAN,
 	colAggType  STRING,
 	fieldIdx    INTEGER
 END RECORD
@@ -91,14 +91,8 @@ PUBLIC FUNCTION tableExcelExport(tableName STRING, jsonData util.JSONArray) RETU
 
 		END FOR
 
-		#Prune hidden columns from the colInfoList (Where hidden is 1)
-		WHILE (idx := colInfoList.search("colHidden", 1)) > 0
-				CALL colInfoList.deleteElement(idx)
-				CALL columnHeaders.deleteElement(idx)
-		END WHILE
-
-		#Prune hidden columns from the colInfoList (Where hidden is 2)
-		WHILE (idx := colInfoList.search("colHidden", 2)) > 0
+		#Prune hidden columns from the colInfoList
+		WHILE (idx := colInfoList.search("colHidden", TRUE)) > 0
 				CALL colInfoList.deleteElement(idx)
 				CALL columnHeaders.deleteElement(idx)
 		END WHILE
@@ -204,7 +198,7 @@ PRIVATE FUNCTION (self TColumnMetaInfo) setFromNode(node om.DomNode) RETURNS ()
 	#Get the attributes we need
 	LET self.colTitle = node.getAttribute("text")
 	LET self.colType = node.getAttribute("varType")
-	LET self.colHidden = node.getAttribute("hidden")
+	LET self.colHidden = IIF(node.getAttribute("hidden") > 0, TRUE, FALSE)
 	LET self.colName = node.getAttribute("colName")
 	LET self.colPosition = node.getAttribute("tabIndex")
 	LET self.colAggType = NVL(node.getAttribute("aggregateType"), "none")
