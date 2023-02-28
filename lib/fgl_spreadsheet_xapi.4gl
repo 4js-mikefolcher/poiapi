@@ -692,8 +692,14 @@ PRIVATE FUNCTION column2Letter(cellIdx INTEGER) RETURNS STRING
    CONSTANT alphaLen = 26
 
    IF cellIdx > alphaLen THEN
-      LET cellId = ASCII((cellIdx / alphaLen) + asciiOffset),
-                   ASCII((cellIdx MOD alphaLen) + asciiOffset)
+      VAR remainder INTEGER = cellIdx MOD alphaLen
+      IF remainder == 0 THEN
+         LET cellId = ASCII((cellIdx / alphaLen) + asciiOffset - 1),
+                      ASCII(asciiOffset + alphaLen)
+      ELSE
+         LET cellId = ASCII((cellIdx / alphaLen) + asciiOffset),
+                      ASCII(remainder + asciiOffset)
+      END IF
    ELSE
       LET cellId = ASCII((cellIdx+asciiOffset))
    END IF
