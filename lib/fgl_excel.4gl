@@ -154,13 +154,19 @@ DEFINE c cellType
 DEFINE v STRING
 DEFINE javaDate java.util.Date
 DEFINE dateFormatter SimpleDateFormat
+DEFINE baselineDate java.util.Date
 
     IF v IS NULL THEN
         CALL c.setCellValue(v)
     ELSE
         LET dateFormatter = java.text.SimpleDateFormat.create("yyyy-MM-dd")
+        LET baselineDate = dateFormatter.parse("1900-01-01")
         LET javaDate = dateFormatter.parse(v)
-        CALL c.setCellValue(javaDate)
+        IF javaDate.before(baselineDate) THEN
+           CALL c.setCellValue("")
+        ELSE
+           CALL c.setCellValue(javaDate)
+        END IF
     END IF
     
 END FUNCTION
