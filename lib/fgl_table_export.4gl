@@ -66,6 +66,7 @@ PUBLIC FUNCTION tableExcelExport(tableName STRING, jsonData util.JSONArray) RETU
 			#Get a reference to the table node
 			VAR columnNode = tableNode.getChildByIndex(idx)
 			IF columnNode.getTagName() == "PhantomColumn" THEN
+				#Skip the column if it's a Phantom Column
 				CONTINUE FOR
 			END IF
 
@@ -77,7 +78,7 @@ PUBLIC FUNCTION tableExcelExport(tableName STRING, jsonData util.JSONArray) RETU
 			LET columnInfo.colIdx = idx
 			LET columnInfo.fieldIdx = fieldIdx
 
-			#Add to the column header array
+			#Add to the column header array, using the position from the AUI tree
 			LET columnHeaders[columnInfo.colPosition].colTitle = columnInfo.colTitle
 			LET columnHeaders[columnInfo.colPosition].colCalc = getAggregateType(columnInfo.colAggType)
 
