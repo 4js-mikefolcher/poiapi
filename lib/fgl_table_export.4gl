@@ -59,9 +59,12 @@ PUBLIC FUNCTION tableExcelExport(tableName STRING, jsonData util.JSONArray) RETU
 		LET tableSort.sortOrder = NVL(tableNode.getAttribute("sortType"), "none")
 
 		VAR fieldIdx = 0
+		VAR minIdx = 0
 
 		#Get the header information
 		FOR idx = 1 TO tableNode.getChildCount()
+
+			CALL debugOutput(SFMT("Header Column # %1", idx))
 
 			#Get a reference to the table node
 			VAR columnNode = tableNode.getChildByIndex(idx)
@@ -85,12 +88,31 @@ PUBLIC FUNCTION tableExcelExport(tableName STRING, jsonData util.JSONArray) RETU
 			#Add to the column info array
 			LET colInfoList[columnInfo.colPosition] = columnInfo
 
+			IF minIdx == 0 OR columnInfo.colPosition < minIdx THEN
+				LET minIdx = columnInfo.colPosition
+			END IF
+
+			CALL debugOutput(SFMT("Column Title: %1", columnInfo.colTitle))
+			CALL debugOutput(SFMT("Column Aggregate Type: %1", columnInfo.colAggType))
+			CALL debugOutput(SFMT("Column Position: %1", columnInfo.colPosition))
+
 			#If the table is sorted, set the column position
 			IF tableSort.colIdx > 0 AND tableSort.colIdx == idx THEN
 				LET tableSort.colPosition = columnInfo.colPosition
 			END IF
 
 		END FOR
+
+		LET idx = 1
+		WHILE idx < minIdx
+			#Fix indexing issue with tabIndex
+			CALL colInfoList.deleteElement(idx)
+			CALL columnHeaders.deleteElement(idx)
+			LET minIdx -= 1
+			IF tableSort.colPosition > 0 THEN
+				LET tableSort.colPosition -= 1
+			END IF
+		END WHILE
 
 		#Prune hidden columns from the colInfoList
 		WHILE (idx := colInfoList.search("colHidden", TRUE)) > 0
@@ -115,10 +137,15 @@ PUBLIC FUNCTION tableExcelExport(tableName STRING, jsonData util.JSONArray) RETU
 			VAR jsonRow = util.JSONObject.create()
 			VAR dataRow util.JSONObject = jsonData.get(valueIdx)
 
+			CALL debugOutput(SFMT("Data Row:\n%1", util.JSON.format(dataRow.toString())))
+
 			#Loop through each column in the colInfoList array
 			FOR idx = 1 TO colInfoList.getLength()
 				VAR dataName STRING = dataRow.name(colInfoList[idx].colIdx)
 				VAR dataValue STRING = dataRow.get(dataName)
+
+				CALL debugOutput(SFMT("dataName: %1", dataName))
+				CALL debugOutput(SFMT("dataValue: %1", dataValue))
 				CALL jsonRow.put(colInfoList[idx].colName, dataValue)
 
 				#For the first row, build the field type XML structure
@@ -139,7 +166,10 @@ PUBLIC FUNCTION tableExcelExport(tableName STRING, jsonData util.JSONArray) RETU
 			#Set the record definition when we are on the first row
 			IF valueIdx == 1 THEN
 				CALL excelApi.setRecordDefinition(recDef)
+				CALL debugOutput(recDef.toString())
 			END IF
+
+			CALL debugOutput(SFMT("Excel JSON Row:\n%1", util.JSON.format(jsonRow.toString())))
 
 			IF tableSort.colIdx > 0 THEN
 				#If sort is specified in the front-end, save the jsonRow in the sortList
@@ -230,3 +260,12 @@ PRIVATE FUNCTION (self TDataSort) setValue(dataValue STRING, dataType STRING) RE
 	RETURN sortColumn
 
 END FUNCTION #setValue
+
+PRIVATE CONSTANT cDebugMode = FALSE
+PRIVATE FUNCTION debugOutput(outputMessage STRING) RETURNS ()
+
+	IF cDebugMode THEN
+		DISPLAY outputMessage
+	END IF
+
+END FUNCTION #debugOutput
