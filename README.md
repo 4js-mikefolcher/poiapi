@@ -24,9 +24,9 @@ in the same node.
 
 Currently I use the value for CLASSPATH in my Genero Studio environment ...
 ``
-$(CLASSPATH);$(POI_DIR)/poi-5.0.0.jar;$(POI_DIR)/poi-excelant-5.0.0.jar;$(POI_DIR)/poi-integration-5.0.0.jar;$(POI_DIR)/poi-ooxml-5.0.0.jar;$(POI_DIR)/poi-ooxml-full-5.0.0.jar;$(POI_DIR)/poi-scratchpad-5.0.0.jar;$(POI_DIR)/ooxml-lib/commons-compress-1.20.jar;$(POI_DIR)/ooxml-lib/curvesapi-1.06.jar;$(POI_DIR)/ooxml-lib/xmlbeans-4.0.0.jar;$(POI_DIR)/lib/commons-codec-1.15.jar;$(POI_DIR)/lib/commons-collections4-4.4.jar;$(POI_DIR)/lib/commons-math3-3.6.1.jar;$(POI_DIR)/lib/SparseBitSet-1.2.jar
+$(CLASSPATH);$(POI_DIR)/poiapi-4js-5.2.3.jar;$(POI_DIR)/log4j-core-2.19.0.jar
 ``
-... and as you can see, there is some versioning in the filenames.
+... the jar files correspond to the files in the javadeps directory of the repo.
 
 
 ## Test Program
