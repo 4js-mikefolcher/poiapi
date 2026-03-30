@@ -1,0 +1,23 @@
+{
+  "name": "poiapi",
+  "version": "1.1.0",
+  "root": "com/fourjs/poiapi",
+  "description": "POI API for Genero BDL for exporting to Excel",
+  "author": "mifo@4js.com",
+  "license": "4Js License",
+  "dependencies": {
+    "fgl": {},
+    "java": [
+      {
+        "groupId": "org.apache.poi",
+        "artifactId": "poi",
+        "version": "5.2.3"
+      },
+      {
+        "groupId": "org.apache.logging.log4j",
+        "artifactId": "log4j-api",
+        "version": "2.25.3"
+      }
+    ]
+  }
+}
