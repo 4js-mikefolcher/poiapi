@@ -6,9 +6,11 @@
 *.log
 .DS_Store
 *.4pdb
+*.lock
 
 #Directories
 bin/
 build/
 com/
 .gst/
+.claude/
