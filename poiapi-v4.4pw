@@ -68,7 +68,7 @@
   <LanguageList version="1.0"/>
   <PlatformList version="1.0"/>
   <Group environment="dirlist:FGLLDPATH=$(FGLLDPATH);$(ProjectDir)" id="1492561099" label="app" language="Genero" targetDirectory="$(ProjectDir)/lib/bin">
-    <Application binaryName="fgl_excel_api_test" id="-743185610" label="fgl_excel_api_test">
+    <Application binaryName="fgl_excel_api_test" dependencies="-2034279524" id="-743185610" label="fgl_excel_api_test" targetDirectory="$(ProjectDir)/bin">
       <Configuration id="1894536589" label="fgl_excel_api_test"/>
       <File filePath="src/fgl_excel_api_test.4gl"/>
       <File filePath="src/fgl_excel_form.per"/>
