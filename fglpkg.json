@@ -1,6 +1,6 @@
 {
   "name": "poiapi",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "root": "com/fourjs/poiapi",
   "description": "POI API for Genero BDL for exporting to Excel",
   "author": "mifo@4js.com",
@@ -11,12 +11,68 @@
       {
         "groupId": "org.apache.poi",
         "artifactId": "poi",
-        "version": "5.2.3"
+        "version": "5.3.0",
+        "note": "Base POI library - ss.usermodel.*, ss.util.*"
+      },
+      {
+        "groupId": "org.apache.poi",
+        "artifactId": "poi-ooxml",
+        "version": "5.3.0",
+        "note": "OOXML support - xssf.usermodel.* (.xlsx format)"
+      },
+      {
+        "groupId": "org.apache.poi",
+        "artifactId": "poi-ooxml-lite",
+        "version": "5.3.0",
+        "note": "Lightweight OOXML schemas required by poi-ooxml"
+      },
+      {
+        "groupId": "org.apache.xmlbeans",
+        "artifactId": "xmlbeans",
+        "version": "5.2.2",
+        "note": "XML binding layer used internally by POI OOXML"
+      },
+      {
+        "groupId": "org.apache.commons",
+        "artifactId": "commons-compress",
+        "version": "1.27.1",
+        "note": "ZIP/package handling for .xlsx files"
+      },
+      {
+        "groupId": "org.apache.commons",
+        "artifactId": "commons-collections4",
+        "version": "4.5.0",
+        "note": "Utility collections used by POI internally"
+      },
+      {
+        "groupId": "org.apache.commons",
+        "artifactId": "commons-math3",
+        "version": "3.6.1",
+        "note": "Math utilities used by POI internally"
       },
       {
         "groupId": "org.apache.logging.log4j",
         "artifactId": "log4j-api",
-        "version": "2.25.3"
+        "version": "2.17.1",
+        "note": "Logging facade used by POI - must match Genero GRE bundled log4j-core version"
+      },
+      {
+        "groupId": "commons-io",
+        "artifactId": "commons-io",
+        "version": "2.18.0",
+        "note": "I/O utilities required by poi-ooxml"
+      },
+      {
+        "groupId": "com.github.virtuald",
+        "artifactId": "curvesapi",
+        "version": "1.08",
+        "note": "Curve/spline math used by POI for charts"
+      },
+      {
+        "groupId": "commons-codec",
+        "artifactId": "commons-codec",
+        "version": "1.17.2",
+        "note": "Encoding utilities (Base64 etc.) used by POI"
       }
     ]
   }
