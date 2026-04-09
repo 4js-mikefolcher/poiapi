@@ -10,13 +10,89 @@ The POI API package (`com.fourjs.poiapi`) provides a Genero BDL library for crea
 | **TSpreadsheetXtend** | `fgl_spreadsheet_xapi` | Grouped data with subtotals, subtitles, and multi-sheet workbooks |
 | **tableExcelExport** | `fgl_table_export` | One-call export directly from a UI Table widget |
 
+---
+
 ## Installation
+
+### Prerequisites
+
+- Genero BDL 4.x or later
+- Java Runtime Environment
 
 ### Using the Genero Package Manager (fglpkg)
 
-The recommended way to install the POI API package is through the Genero Package Manager. You can download `fglpkg` from https://github.com/4js-mikefolcher/fglpkg/releases.
+The recommended way to install the POI API package is through the Genero Package Manager (`fglpkg`).
 
-Once installed, add `poiapi` as a dependency in your project's `fglpkg.json`:
+#### Step 1: Install fglpkg
+
+Download the `fglpkg` binary for your platform from [GitHub Releases](https://github.com/4js-mikefolcher/fglpkg/releases) and place it in a directory on your `PATH`:
+
+```bash
+# macOS/Linux example
+sudo cp fglpkg-darwin-arm64 /usr/local/bin/fglpkg
+sudo chmod +x /usr/local/bin/fglpkg
+```
+
+#### Step 2: Understand local vs. global installation
+
+`fglpkg` supports two installation scopes. The choice between them depends on how your environment manages Genero versions.
+
+| Scope | Packages stored in | Environment command | Best for |
+|-------|-------------------|---------------------|----------|
+| **Local** (`--local`) | `.fglpkg/` inside the project directory | `eval "$(fglpkg env)"` | Development workstations where multiple Genero versions may coexist |
+| **Global** (`--global`) | `~/.fglpkg/` (user home) | `eval "$(fglpkg env --global)"` | CI/CD pipelines and build servers with a single Genero version |
+
+**Local installation** is recommended for individual development environments. Because compiled BDL modules (`.42m` files) are tied to a specific Genero major version, keeping packages local to each project avoids conflicts when different projects target different Genero versions. Each project gets its own isolated set of packages and JARs.
+
+**Global installation** is better suited for CI/CD pipelines and build servers where a single Genero version is installed. Packages are shared across all projects, avoiding redundant downloads on every build. The global home directory can be overridden with the `FGLPKG_HOME` environment variable if needed.
+
+When you run `fglpkg install` from within a project directory (one that contains a `fglpkg.json`), it defaults to local installation. Outside a project directory, it defaults to global. You can override the default with the `--local` or `--global` flag.
+
+#### Step 3: Configure your shell environment
+
+Add one of the following lines to your shell profile (`~/.bashrc`, `~/.zshrc`, or equivalent) so that installed packages are available to Genero at compile and runtime:
+
+**For local (development) installation:**
+
+```bash
+# Run from within your project directory, or set up per-project scripts
+eval "$(fglpkg env)"
+
+# If using GST, run this command and copy the output to put into your project environment variables
+fglpkg env --gst
+```
+
+Since local environment paths are project-specific, you typically run this in your project's build script or terminal session rather than in your global shell profile.
+
+**For global (CI/CD) installation:**
+
+```bash
+# Add to shell profile for build servers
+eval "$(fglpkg env --global)"
+```
+
+Both commands export the `FGLLDPATH` and `CLASSPATH` environment variables with paths to the installed BDL packages and Java JAR files. Reload your shell or run `source ~/.bashrc` (or `source ~/.zshrc`) after making changes to your profile.
+
+#### Step 4: Add poiapi as a dependency
+
+If your project does not already have a `fglpkg.json` file, create one by running:
+
+```bash
+cd /path/to/your/project
+fglpkg init
+```
+
+Then add `poiapi` as a dependency. You can do this by running:
+
+```bash
+# Local install (default when inside a project directory)
+fglpkg install poiapi
+
+# Or explicitly global for CI/CD
+fglpkg install --global poiapi
+```
+
+Or by manually editing your project's `fglpkg.json` to include the dependency:
 
 ```json
 {
@@ -24,47 +100,59 @@ Once installed, add `poiapi` as a dependency in your project's `fglpkg.json`:
   "version": "1.0.0",
   "dependencies": {
     "fgl": {
-      "poiapi": "6.0.0"
+      "poiapi": "^1.2.0"
     }
   }
 }
 ```
 
-Then run `fglpkg sync` to download the package and its dependencies. The package manager will automatically resolve and fetch the required Java dependencies (Apache POI and Log4j) declared in the poiapi package definition:
+Then run:
 
-```json
-{
-  "name": "poiapi",
-  "version": "1.1.0",
-  "root": "com/fourjs/poiapi",
-  "dependencies": {
-    "fgl": {},
-    "java": [
-      {
-        "groupId": "org.apache.poi",
-        "artifactId": "poi",
-        "version": "5.2.3"
-      },
-      {
-        "groupId": "org.apache.logging.log4j",
-        "artifactId": "log4j-api",
-        "version": "2.25.3"
-      }
-    ]
-  }
-}
+```bash
+fglpkg install
 ```
+
+The package manager resolves and downloads both the compiled BDL modules and all required Java dependencies (Apache POI 5.3.0 and its transitive dependencies) automatically. The `fglpkg.lock` file is created alongside `fglpkg.json` to pin exact versions for reproducible installs across machines.
+
+#### Step 5: Verify the installation
+
+Confirm the package is installed:
+
+```bash
+fglpkg list
+```
+
+You should see `poiapi` listed with its version number.
+
+#### Understanding what fglpkg installs
+
+The `poiapi` package declares its Java dependencies in its own `fglpkg.json`. When you install `poiapi`, `fglpkg` automatically fetches these JAR files from Maven Central:
+
+| Library | Version | Purpose |
+|---------|---------|---------|
+| poi | 5.3.0 | Base POI library |
+| poi-ooxml | 5.3.0 | OOXML support for .xlsx format |
+| poi-ooxml-lite | 5.3.0 | Lightweight OOXML schemas |
+| xmlbeans | 5.2.2 | XML binding layer |
+| commons-compress | 1.27.1 | ZIP/package handling |
+| commons-collections4 | 4.5.0 | Utility collections |
+| commons-math3 | 3.6.1 | Math utilities |
+| log4j-api | 2.17.1 | Logging facade |
+| commons-io | 2.18.0 | I/O utilities |
+| curvesapi | 1.08 | Curve/spline math |
+| commons-codec | 1.17.2 | Encoding utilities |
+
+You do not need to download or manage any of these manually.
 
 ### Manual Installation
 
-If you are not using the Genero Package Manager, you can install the dependencies manually:
+If you are not using `fglpkg`, you can install the dependencies manually:
 
-1. Download the Apache POI libraries from https://poi.apache.org/
-2. Set the `POI_HOME` environment variable to the download location
-3. Add the POI JAR files to your `CLASSPATH`:
-   ```
-   $(CLASSPATH);$(POI_DIR)/poiapi-4js-5.2.3.jar;$(POI_DIR)/log4j-core-2.19.0.jar
-   ```
+1. Download the Apache POI 5.3.0 libraries and all transitive dependencies listed above from [Maven Central](https://search.maven.org/) or the [Apache POI website](https://poi.apache.org/)
+2. Add all JAR files to your `CLASSPATH` environment variable
+3. Copy the compiled `.42m` files from `com/fourjs/poiapi/` to a directory on your `FGLLDPATH`
+
+---
 
 ## Supported Data Types
 
@@ -514,6 +602,29 @@ For `COUNT` aggregates, the formula uses addition across ranges:
 
 ```
 COUNTA(C5:C10)+COUNTA(C15:C20)
+```
+
+---
+
+## Helper Types Reference
+
+The `fgl_spreadsheet_helper` module defines shared types used across the API:
+
+```4gl
+PUBLIC TYPE TFields RECORD
+    fieldName STRING,     # Field name in the record
+    fieldType STRING      # Genero data type (e.g., "INTEGER", "MONEY(10,2)")
+END RECORD
+
+PUBLIC TYPE TColumnInfo RECORD
+    colTitle STRING,      # Excel column header text
+    colCalc STRING        # Aggregate formula constant (cExcelSum, cExcelNone, etc.)
+END RECORD
+
+PUBLIC TYPE TDataRow RECORD
+    rowType STRING,       # "DATA", "GROUPHEADER", or "GROUPFOOTER"
+    rowData util.JSONObject  # Row data as JSON
+END RECORD
 ```
 
 ---
