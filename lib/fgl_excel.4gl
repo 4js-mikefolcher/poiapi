@@ -394,10 +394,29 @@ PUBLIC FUNCTION freeze_rows(s sheetType, startRow INTEGER, numOfRows INTEGER) RE
 
 END FUNCTION #freeze_rows
 
+#Excel forbids these characters in a worksheet (tab) name: \ / ? * [ ] :
+#The library uses the spreadsheet title as the tab name, so strip any of
+#these characters out before handing the name to POI (which would otherwise
+#throw an IllegalArgumentException).
+PRIVATE FUNCTION sanitizeSheetName(sheetName STRING) RETURNS (STRING)
+   DEFINE buf base.StringBuffer
+
+   LET buf = base.StringBuffer.create()
+   CALL buf.append(sheetName)
+   CALL buf.replace("\\", "", 0)
+   CALL buf.replace("/", "", 0)
+   CALL buf.replace("?", "", 0)
+   CALL buf.replace("*", "", 0)
+   CALL buf.replace("[", "", 0)
+   CALL buf.replace("]", "", 0)
+   CALL buf.replace(":", "", 0)
+   RETURN buf.toString()
+END FUNCTION
+
 PUBLIC FUNCTION workbook_createsheet_with_name(w workbookType, sheetName STRING) RETURNS (sheetType)
    DEFINE s sheetType
 
-    LET s= w.createSheet(sheetName)
+    LET s= w.createSheet(sanitizeSheetName(sheetName))
     RETURN s
 
 END FUNCTION
