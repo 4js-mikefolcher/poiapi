@@ -129,7 +129,7 @@ PRIVATE FUNCTION displayMenuTable() RETURNS ()
 		ON ACTION export_to_excel ATTRIBUTES(TEXT="Export to Excel")
 			VAR filename = tableExcelExport("s_menu", util.JSONArray.fromFGL(menuList))
 			DISPLAY filename
-			CALL fgl_putfile(filename, "gbc")
+			CALL fgl_putfile(filename, os.Path.baseName(filename))
 
 		ON ACTION CANCEL
 			LET int_flag = TRUE
@@ -553,7 +553,7 @@ PRIVATE FUNCTION displayFile(excelFilename STRING) RETURNS ()
 
 	CASE interactiveMode
 		WHEN "web"
-			CALL fgl_putfile(excelFilename, "gbc")
+			CALL fgl_putfile(excelFilename, os.Path.baseName(excelFilename))
 		WHEN "desktop"
 			VAR clientFilename = os.Path.baseName(excelFilename)
 			CALL fgl_putfile(excelFilename, clientFilename)
