@@ -86,6 +86,6 @@
   },
   "root": "com/fourjs/poiapi",
   "docs": [
-    "USERGUIDE.md, README.md"
+    "USERGUIDE.md", "README.md"
   ]
 }
