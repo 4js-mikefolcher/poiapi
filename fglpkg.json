@@ -1,6 +1,6 @@
 {
   "name": "poiapi",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "description": "POI API for Genero BDL for exporting to Excel",
   "author": "mifo@4js.com",
   "license": "4Js License",
@@ -86,6 +86,7 @@
   },
   "root": "com/fourjs/poiapi",
   "docs": [
-    "USERGUIDE.md", "README.md"
+    "USERGUIDE.md",
+    "README.md"
   ]
 }
