@@ -2,16 +2,16 @@ LAYOUT (TEXT="Excel Export Table")
 	VBOX
 		TABLE
 {
-[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016]
-[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016]
-[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016]
-[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016]
-[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016]
-[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016]
-[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016]
-[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016]
-[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016]
-[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016]
+[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016   |fld017    ]
+[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016   |fld017    ]
+[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016   |fld017    ]
+[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016   |fld017    ]
+[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016   |fld017    ]
+[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016   |fld017    ]
+[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016   |fld017    ]
+[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016   |fld017    ]
+[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016   |fld017    ]
+[fld001     |fld002       |fld003         |fld004       |fld005       |fld006      |fld007      |fld008      |fld009      |fld010      |fld011     |fld012      |fld013    |fld014   |fld015     |fld016   |fld017    ]
 }
 		END --TABLE
 	END --VBOX
@@ -35,11 +35,13 @@ ATTRIBUTES
 	EDIT fld014 = formonly.floatField TYPE FLOAT, TITLE="Float", SCROLL;
 	EDIT fld015 = formonly.smallfloatField TYPE SMALLFLOAT, TITLE="Small Float", SCROLL;
 	EDIT fld016 = formonly.booleanField TYPE BOOLEAN, TITLE="Boolean", SCROLL;
+	COMBOBOX fld017 = formonly.comboField TYPE INTEGER, TITLE="Combo",
+		ITEMS=((1,"Red"),(2,"Green"),(3,"Blue"));
 
 END --ATTRIBUTES
 
 INSTRUCTIONS
 
-	SCREEN RECORD s_table (formonly.stringField THRU formonly.booleanField);
+	SCREEN RECORD s_table (formonly.stringField THRU formonly.comboField);
 
 END --INSTRUCTIONS

@@ -13,7 +13,8 @@ PRIVATE TYPE TColumnMetaInfo RECORD
 	colPosition INTEGER,
 	colHidden   BOOLEAN,
 	colAggType  STRING,
-	fieldIdx    INTEGER
+	fieldIdx    INTEGER,
+	colItems    util.JSONObject
 END RECORD
 
 PRIVATE TYPE TTableSort RECORD
@@ -34,7 +35,8 @@ PRIVATE TYPE TDataSort RECORD
 	numberField DECIMAL(20),
 	dateField DATE,
 	datetimeField DATETIME YEAR TO FRACTION (5),
-	jsonRow util.JSONObject
+	jsonRow util.JSONObject,
+	jsonSortRow util.JSONObject
 END RECORD
 
 PUBLIC FUNCTION tableExcelExport(tableName STRING, jsonData util.JSONArray) RETURNS (STRING)
@@ -156,6 +158,7 @@ PUBLIC FUNCTION tableExcelExport(tableName STRING, jsonData util.JSONArray) RETU
 		#Loop through each row of data
 		FOR valueIdx = 1 TO jsonData.getLength()
 			VAR jsonRow = util.JSONObject.create()
+			VAR sortRow = util.JSONObject.create()
 			VAR dataRow util.JSONObject = jsonData.get(valueIdx)
 
 			CALL debugOutput(SFMT("Data Row:\n%1", util.JSON.format(dataRow.toString())))
@@ -164,6 +167,15 @@ PUBLIC FUNCTION tableExcelExport(tableName STRING, jsonData util.JSONArray) RETU
 			FOR idx = 1 TO colInfoList.getLength()
 				VAR dataName STRING = dataRow.name(colInfoList[idx].colIdx)
 				VAR dataValue STRING = dataRow.get(dataName)
+				VAR itemCode STRING = dataValue
+
+				#A COMBOBOX column holds the item code, but the user sees the
+				#item label, so export the label. The code is kept aside
+				#because the front-end sorts the column on the code.
+				IF colInfoList[idx].colItems IS NOT NULL THEN
+					LET dataValue = getItemText(colInfoList[idx].colItems, itemCode)
+					CALL sortRow.put(colInfoList[idx].colName, itemCode)
+				END IF
 
 				CALL debugOutput(SFMT("dataName: %1", dataName))
 				CALL debugOutput(SFMT("dataValue: %1", dataValue))
@@ -174,13 +186,15 @@ PUBLIC FUNCTION tableExcelExport(tableName STRING, jsonData util.JSONArray) RETU
 					#Add column metadata on the first row only
 					VAR child = recDef.createChild("Field")
 					CALL child.setAttribute("name", colInfoList[idx].colName)
-					CALL child.setAttribute("type", colInfoList[idx].colType)
+					#An item label is text, whatever the type of the item code
+					CALL child.setAttribute("type",
+						IIF(colInfoList[idx].colItems IS NULL, colInfoList[idx].colType, "STRING"))
 				END IF
 
 				#If the data is sorted on the frontend (legacy single-column
 				#path only), capture the sort column value in the sortList
 				IF NOT useMultiSort AND tableSort.colIdx > 0 AND tableSort.colIdx == colInfoList[idx].fieldIdx THEN
-					LET sortColumn = sortList[valueIdx].setValue(dataValue, colInfoList[idx].colType)
+					LET sortColumn = sortList[valueIdx].setValue(itemCode, colInfoList[idx].colType)
 				END IF
 
 			END FOR
@@ -197,6 +211,7 @@ PUBLIC FUNCTION tableExcelExport(tableName STRING, jsonData util.JSONArray) RETU
 				#If sort is specified in the front-end, save the jsonRow in the
 				#sortList for a second (sorted) pass
 				LET sortList[valueIdx].jsonRow = jsonRow
+				LET sortList[valueIdx].jsonSortRow = sortRow
 			ELSE
 				#If no sort is specified on the front-end, add the row to the Excel API
 				CALL excelApi.addDataRow(jsonRow)
@@ -213,7 +228,7 @@ PUBLIC FUNCTION tableExcelExport(tableName STRING, jsonData util.JSONArray) RETU
 				FOR idx = 1 TO sortList.getLength()
 					LET sortFieldName =
 						sortList[idx].setValue(
-							NVL(sortList[idx].jsonRow.get(sortKeys[sortKeyIdx].colName), ""),
+							NVL(sortList[idx].getSortValue(sortKeys[sortKeyIdx].colName), ""),
 							sortKeys[sortKeyIdx].colType)
 				END FOR
 				IF sortFieldName.getLength() > 0 THEN
@@ -349,7 +364,141 @@ PRIVATE FUNCTION (self TColumnMetaInfo) setFromNode(node om.DomNode) RETURNS ()
 	LET self.colPosition = node.getAttribute("tabIndex")
 	LET self.colAggType = NVL(node.getAttribute("aggregateType"), "none")
 
+	#COMBOBOX columns display an item label instead of the value held by the
+	#column, so cache the item list to translate the data during the export
+	LET self.colItems = getItemList(node)
+
 END FUNCTION #setFromNode
+
+#Build a "code to label" map from the Item nodes of a COMBOBOX column.
+#Both static ITEMS and item lists filled at runtime by an INITIALIZER end up
+#as Item children of the ComboBox node, so this covers both.
+#Returns NULL when the column is not a COMBOBOX.
+PRIVATE FUNCTION getItemList(columnNode om.DomNode) RETURNS util.JSONObject
+	DEFINE itemList util.JSONObject
+	DEFINE comboNodes om.NodeList
+	DEFINE itemNodes om.NodeList
+	DEFINE itemNode om.DomNode
+	DEFINE itemName STRING
+	DEFINE itemText STRING
+	DEFINE itemCode STRING
+	DEFINE idx INTEGER
+
+	LET comboNodes = columnNode.selectByTagName("ComboBox")
+	IF comboNodes.getLength() == 0 THEN
+		RETURN NULL
+	END IF
+
+	LET itemList = util.JSONObject.create()
+	LET itemNodes = comboNodes.item(1).selectByTagName("Item")
+	FOR idx = 1 TO itemNodes.getLength()
+		LET itemNode = itemNodes.item(idx)
+		LET itemName = itemNode.getAttribute("name")
+		IF itemName IS NULL THEN
+			#An item without a code only labels the empty value
+			CONTINUE FOR
+		END IF
+		#addItem(code, NULL) leaves no text: the code is what the user sees
+		LET itemText = NVL(itemNode.getAttribute("text"), itemName)
+		CALL itemList.put(itemName, itemText)
+		#Also register the normalized code, so a DECIMAL item code still
+		#matches the data when the two are written differently
+		LET itemCode = normalizeCode(itemName)
+		IF itemCode != itemName AND NOT itemList.has(itemCode) THEN
+			CALL itemList.put(itemCode, itemText)
+		END IF
+	END FOR
+
+	RETURN itemList
+
+END FUNCTION #getItemList
+
+#Translate a COMBOBOX item code into the label shown to the user. Values that
+#are not COMBOBOX columns, and codes that are not in the item list, are
+#returned unchanged.
+PRIVATE FUNCTION getItemText(itemList util.JSONObject, dataValue STRING) RETURNS STRING
+	DEFINE itemCode STRING
+
+	IF itemList IS NULL OR dataValue IS NULL THEN
+		RETURN dataValue
+	END IF
+
+	IF itemList.has(dataValue) THEN
+		RETURN itemList.get(dataValue)
+	END IF
+
+	LET itemCode = normalizeCode(dataValue)
+	IF itemList.has(itemCode) THEN
+		RETURN itemList.get(itemCode)
+	END IF
+
+	#Not in the item list: export the code itself, as the front-end does
+	RETURN itemCode
+
+END FUNCTION #getItemText
+
+#Put an item code in a canonical form so that codes written differently on
+#each side still match. CHAR item codes can carry trailing blanks the data
+#does not, and the JSON data holds numbers with a decimal part, so an
+#INTEGER column holding 2 arrives here as "2.0" while its item code is "2".
+PRIVATE FUNCTION normalizeCode(itemCode STRING) RETURNS STRING
+	DEFINE dotPos  INTEGER
+	DEFINE lastPos INTEGER
+	DEFINE idx     INTEGER
+	DEFINE currChr CHAR(1)
+
+	IF itemCode IS NULL THEN
+		RETURN itemCode
+	END IF
+
+	LET itemCode = itemCode.trim()
+	LET dotPos = itemCode.getIndexOf(".", 1)
+	IF dotPos == 0 THEN
+		RETURN itemCode
+	END IF
+
+	#Only numbers get their decimal part trimmed
+	FOR idx = 1 TO itemCode.getLength()
+		LET currChr = itemCode.getCharAt(idx)
+		CASE
+			WHEN currChr MATCHES "[0-9.]"
+				CONTINUE FOR
+			WHEN idx == 1 AND (currChr == "-" OR currChr == "+")
+				CONTINUE FOR
+			OTHERWISE
+				RETURN itemCode
+		END CASE
+	END FOR
+
+	#Drop the trailing zeros of the decimal part, and the dot when nothing
+	#is left of it: "2.0" -> "2", "2.50" -> "2.5"
+	LET lastPos = itemCode.getLength()
+	WHILE lastPos > dotPos AND itemCode.getCharAt(lastPos) == "0"
+		LET lastPos = lastPos - 1
+	END WHILE
+	IF lastPos == dotPos THEN
+		LET lastPos = lastPos - 1
+	END IF
+	IF lastPos < 1 THEN
+		RETURN itemCode
+	END IF
+
+	RETURN itemCode.subString(1, lastPos)
+
+END FUNCTION #normalizeCode
+
+#The value a column is sorted on: the item code for a COMBOBOX column, since
+#the front-end orders those rows on the code and not on the item label, and
+#the exported value for any other column.
+PRIVATE FUNCTION (self TDataSort) getSortValue(colName STRING) RETURNS STRING
+
+	IF self.jsonSortRow IS NOT NULL AND self.jsonSortRow.has(colName) THEN
+		RETURN self.jsonSortRow.get(colName)
+	END IF
+
+	RETURN self.jsonRow.get(colName)
+
+END FUNCTION #getSortValue
 
 PRIVATE FUNCTION (self TDataSort) setValue(dataValue STRING, dataType STRING) RETURNS STRING
 

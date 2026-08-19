@@ -525,6 +525,7 @@ CLOSE WINDOW w
 - Skips `PhantomColumn` entries and hidden columns
 - Respects front-end column reordering (uses `tabIndex` positions)
 - Detects front-end sorting and re-sorts data in the export to match
+- Exports `COMBOBOX` columns as the item label the user sees, not the item code (rows stay ordered on the code, the way the front-end sorts them)
 - Reads aggregate type attributes (`SUM`, `AVG`, `COUNT`, `MIN`, `MAX`) from the form definition
 - Creates a subtitle row using the window title
 - Auto-sizes columns and applies data type formatting

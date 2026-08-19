@@ -23,7 +23,8 @@ PRIVATE TYPE TData RECORD
 	varcharField VARCHAR(100),
 	floatField FLOAT,
 	smallfloatField SMALLFLOAT,
-	booleanField BOOLEAN
+	booleanField BOOLEAN,
+	comboField INTEGER
 END RECORD
 
 DEFINE dataList DYNAMIC ARRAY OF TData
@@ -57,6 +58,8 @@ MAIN
 		LET dataRec.charField = SFMT("%1 x %1 y %1 z %1", idx)
 		LET dataRec.varcharField = SFMT("'%1' '%1' '%1' '%1'", ASCII(idx + 32))
 		LET dataRec.booleanField = idx MOD 2
+		#A COMBOBOX column: the export must show the item label, not the code
+		LET dataRec.comboField = (idx MOD 3) + 1
 		LET dataRec.dateField = TODAY - idx UNITS DAY
 		LET dataRec.datetimeField = CURRENT YEAR TO SECOND
 		LET dataRec.datetimeField2 = CURRENT YEAR TO MINUTE

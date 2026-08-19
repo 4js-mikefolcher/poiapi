@@ -1,12 +1,11 @@
 {
   "name": "poiapi",
-  "version": "1.6.4",
+  "version": "1.7.0",
   "description": "POI API for Genero BDL for exporting to Excel",
   "author": "mifo@4js.com",
   "license": "4Js License",
   "repository": "https://github.com/4js-mikefolcher/poiapi",
   "dependencies": {
-    "fgl": {},
     "java": [
       {
         "groupId": "org.apache.poi",
@@ -59,8 +58,8 @@
       {
         "groupId": "org.apache.logging.log4j",
         "artifactId": "log4j-api",
-        "version": "2.17.1",
-        "checksum": "b0d8a4c8ab4fb8b1888d0095822703b0e6d4793c419550203da9e69196161de4"
+        "version": "2.26.1",
+        "checksum": "f1810a4704ccce019d02bba029dc02a4f2ac0c997f647b465e7d409c1927f822"
       },
       {
         "groupId": "commons-io",
