@@ -4,7 +4,7 @@
   "generoVersion": "6.00.01",
   "root": {
     "name": "poiapi",
-    "version": "1.6.5",
+    "version": "1.7.0",
     "declared": {
       "dependencies": {
         "java": [
