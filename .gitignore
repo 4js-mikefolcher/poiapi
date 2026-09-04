@@ -16,3 +16,6 @@ com/
 .claude/
 .fglpkg/
 .codex/
+
+#AI Files
+.mcp.json

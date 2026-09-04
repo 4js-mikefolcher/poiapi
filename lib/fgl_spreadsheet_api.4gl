@@ -18,6 +18,8 @@ END RECORD
 PRIVATE DEFINE cellStyleDict DICTIONARY OF fgl_excel.cellStyleType
 
 PUBLIC FUNCTION (self TSpreadsheet) init() RETURNS ()
+	#Module-wide directive - applies to all functions below; propagates errors to the caller
+	WHENEVER ERROR RAISE
 
 	LET self.filename = NULL
 	LET self.workbook = NULL

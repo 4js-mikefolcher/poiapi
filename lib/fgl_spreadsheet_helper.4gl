@@ -36,6 +36,8 @@ END RECORD
 
 PUBLIC FUNCTION getCellStyleForDataType(workbook fgl_excel.workbookType, fglDataType STRING) RETURNS fgl_excel.cellStyleType
    DEFINE cellStyle fgl_excel.cellStyleType
+   #Module-wide directive - applies to all functions below; propagates errors to the caller
+   WHENEVER ERROR RAISE
 
    LET cellStyle = fgl_excel.style_create(workbook)
    CALL setCellStyleForDataType(workbook, cellStyle, fglDataType)

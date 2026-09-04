@@ -50,6 +50,8 @@ PUBLIC FUNCTION tableExcelExport(tableName STRING, jsonData util.JSONArray) RETU
 	DEFINE useMultiSort BOOLEAN
 	DEFINE sortKeyIdx INTEGER
 	DEFINE sortSpecStr STRING
+	#Module-wide directive - applies to all functions below; propagates errors to the caller
+	WHENEVER ERROR RAISE
 
 	VAR winElement = ui.Window.getCurrent()
 	VAR root = winElement.getForm().getNode()

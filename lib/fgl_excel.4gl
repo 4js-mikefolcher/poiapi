@@ -57,6 +57,8 @@ PUBLIC CONSTANT cDatetimeFormat = 22
 
 
 FUNCTION workbook_create()
+    #Module-wide directive - applies to all functions below; propagates errors to the caller
+    WHENEVER ERROR RAISE
     RETURN XSSFWorkbook.create()
 END FUNCTION
 

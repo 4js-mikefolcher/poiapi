@@ -25,6 +25,8 @@ PRIVATE DEFINE formulaStyleDict DICTIONARY OF fgl_excel.cellStyleType
 PRIVATE DEFINE calcRowStack TRowStack
 
 PUBLIC FUNCTION (self TSpreadsheetXtend) init() RETURNS ()
+    #Module-wide directive - applies to all functions below; propagates errors to the caller
+    WHENEVER ERROR RAISE
 
     CALL self.spreadsheet.init()
     CALL self.colInfo.clear()

@@ -9,6 +9,8 @@ PUBLIC TYPE TRowStack RECORD
 END RECORD
 
 PUBLIC FUNCTION (self TRowStack) init() RETURNS ()
+   #Module-wide directive - applies to all functions below; propagates errors to the caller
+   WHENEVER ERROR RAISE
 
    CALL self.rowList.clear()
    CALL self.titleList.clear()
