@@ -79,7 +79,8 @@ LIBMODS  := fgl_excel \
 LIB42M   := $(addprefix $(PKGDIR)/,$(addsuffix .42m,$(LIBMODS)))
 PKGXML   := $(PKGDIR)/package.xml
 
-FORMS    := fgl_excel_form fgl_excel_form_xtend fgl_excel_menu_table
+FORMS    := fgl_excel_form fgl_excel_form_xtend fgl_excel_menu_table \
+            fgl_excel_locale_picker
 FORMS42F := $(addprefix $(BINDIR)/,$(addsuffix .42f,$(FORMS)))
 
 APP      := fgl_excel_api_test

@@ -138,6 +138,9 @@ PRIVATE FUNCTION displayMenuTable() RETURNS ()
 			VAR filename = tableExcelExport("s_menu", util.JSONArray.fromFGL(menuList))
 			CALL displayFile(filename)
 
+		ON ACTION export_to_excel_locale ATTRIBUTES(TEXT="Export to Excel (locale...)")
+			CALL exportTableWithLocale("s_menu", util.JSONArray.fromFGL(menuList))
+
 		ON ACTION CANCEL
 			LET int_flag = TRUE
 			EXIT DISPLAY
@@ -487,6 +490,85 @@ END FUNCTION
 #per format mode, then sheets using explicit format codes. The formats change
 #between the sheets of a single workbook, so this also covers the cached cell
 #styles being dropped when a format setting changes.
+#Lets the user choose the locale an export is formatted in, and returns the
+#language tag they picked, or NULL if they backed out. The list is every locale
+#the runtime can format for, which is long - the table sorts on any column, and
+#it opens on the locale the export would have used anyway.
+PRIVATE FUNCTION pickLocale() RETURNS STRING
+	DEFINE locales DYNAMIC ARRAY OF fgl_spreadsheet_helper.TLocaleInfo
+	DEFINE chosenRow INTEGER = 0
+	DEFINE currentTag STRING
+	DEFINE currentRow INTEGER
+
+	LET locales = fgl_spreadsheet_helper.getAvailableLocales()
+	IF locales.getLength() == 0 THEN
+		ERROR "The runtime offers no locales to choose from"
+		RETURN NULL
+	END IF
+
+	OPEN WINDOW w_locale WITH FORM "fgl_excel_locale_picker" ATTRIBUTES(STYLE="dialog")
+
+	#One row at a time: a DISPLAY ARRAY selects a single current row unless
+	#multi-row selection is turned on, which is what is wanted here
+	DISPLAY ARRAY locales TO s_locales.* ATTRIBUTES(UNBUFFERED, DOUBLECLICK=accept)
+
+		BEFORE DISPLAY
+			#Open on the locale the export would use if nothing were chosen
+			LET currentTag = fgl_spreadsheet_helper.getLocale()
+			IF currentTag IS NOT NULL THEN
+				LET currentRow = locales.search("localeTag", currentTag)
+				IF currentRow > 0 THEN
+					CALL DIALOG.setCurrentRow("s_locales", currentRow)
+				END IF
+			END IF
+
+		ON ACTION accept
+			#Read the row inside the dialog: the built-in column sort reorders
+			#the view only, so this stays the index into the program array
+			LET chosenRow = DIALOG.getCurrentRow("s_locales")
+			ACCEPT DISPLAY
+
+		ON ACTION cancel
+			LET chosenRow = 0
+			EXIT DISPLAY
+
+	END DISPLAY
+
+	CLOSE WINDOW w_locale
+
+	IF chosenRow == 0 THEN
+		RETURN NULL
+	END IF
+
+	RETURN locales[chosenRow].localeTag
+
+END FUNCTION #pickLocale
+
+#Exports a UI table after asking which locale to format it in. The locale is
+#put back afterwards, so the choice applies to this one export.
+PRIVATE FUNCTION exportTableWithLocale(tableName STRING, jsonData util.JSONArray) RETURNS ()
+	DEFINE localeTag STRING
+	DEFINE filename STRING
+
+	LET localeTag = pickLocale()
+	IF localeTag IS NULL THEN
+		RETURN
+	END IF
+
+	CALL fgl_spreadsheet_helper.setLocale(localeTag)
+	TRY
+		LET filename = tableExcelExport(tableName, jsonData)
+	CATCH
+		CALL fgl_spreadsheet_helper.setLocale(NULL)
+		ERROR SFMT("The export failed: %1", STATUS)
+		RETURN
+	END TRY
+	CALL fgl_spreadsheet_helper.setLocale(NULL)
+
+	CALL displayFile(filename)
+
+END FUNCTION #exportTableWithLocale
+
 PRIVATE FUNCTION excelFormatModesExample() RETURNS ()
 	DEFINE excelHandler fgl_spreadsheet_xapi.TSpreadsheetXtend
 
@@ -601,6 +683,9 @@ PRIVATE FUNCTION excelTable() RETURNS ()
 			VAR filename = tableExcelExport("s_table", util.JSONArray.fromFGL(dataList))
 			CALL displayFile(filename)
 
+		ON ACTION export_to_excel_locale ATTRIBUTES(TEXT="Export to Excel (locale...)")
+			CALL exportTableWithLocale("s_table", util.JSONArray.fromFGL(dataList))
+
 		AFTER DISPLAY
 			CONTINUE DISPLAY
 
@@ -652,6 +737,9 @@ PRIVATE FUNCTION xtendExcelTable() RETURNS ()
 		ON ACTION export_to_excel ATTRIBUTES(TEXT="Export to Excel")
 			VAR filename = tableExcelExport("s_xtend", util.JSONArray.fromFGL(xtendList))
 			CALL displayFile(filename)
+
+		ON ACTION export_to_excel_locale ATTRIBUTES(TEXT="Export to Excel (locale...)")
+			CALL exportTableWithLocale("s_xtend", util.JSONArray.fromFGL(xtendList))
 
 		AFTER DISPLAY
 			CONTINUE DISPLAY

@@ -255,6 +255,23 @@ CALL fgl_spreadsheet_helper.setLocale("de-DE")   -- dd"."mm"."yyyy and a leading
 CALL fgl_spreadsheet_helper.setLocale(NULL)
 ```
 
+`getAvailableLocales()` returns every locale the runtime can format for, sorted
+by the name it shows under, ready to put in front of the user. Locales naming
+only a language are left out — they imply no date order and no currency:
+
+| Member | Holds |
+|--------|-------|
+| `localeTag` | `"en-GB"` |
+| `displayName` | `"English (United Kingdom)"` |
+| `dateFormat` | the Excel date code that locale gives, `dd"/"mm"/"yyyy` |
+| `currencySymbol` | `£` |
+
+The four members are in the order a picker form's `SCREEN RECORD` binds them.
+The list is built once and cached, since it cannot change while the program runs.
+`src/fgl_excel_api_test.4gl` has a worked picker — a modal `DISPLAY ARRAY` over
+this list, opening on the locale already in force — wired to an
+**Export to Excel (locale...)** action on each of the table export screens.
+
 `getLocale()` returns the tag actually in force, resolved. This is also the
 dependable way to **test** a locale: a JVM does not always follow `LANG` or
 `LC_ALL` — on macOS it commonly reports `en_US` whatever they are set to — so
@@ -309,6 +326,7 @@ The codes are Excel number format codes, written into the workbook as given.
 | `getTimeFormat(type)` | The code for a `DATETIME HOUR TO ...` type |
 | `getMoneyFormat(type)` | The code for a `MONEY` type |
 | `getLocale()` | The language tag in force for the locale fallback, resolved |
+| `getAvailableLocales()` | Every locale the runtime can format for, as `TLocaleInfo` rows sorted by display name |
 | `getFormatGeneration()` | A counter bumped on every format change, for callers caching cell styles across spreadsheets |
 
 ---

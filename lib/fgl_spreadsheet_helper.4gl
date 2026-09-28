@@ -9,6 +9,8 @@ IMPORT JAVA java.text.NumberFormat
 IMPORT JAVA java.text.DecimalFormat
 IMPORT JAVA java.text.DecimalFormatSymbols
 
+PRIVATE TYPE localeArray ARRAY[] OF java.util.Locale
+
 PUBLIC TYPE TFields RECORD
 	fieldName   STRING,
 	fieldType   STRING
@@ -34,6 +36,16 @@ PUBLIC CONSTANT cGroupFooterRowType = "GROUPFOOTER"
 PUBLIC TYPE TDataRow RECORD
    rowType STRING,
    rowData util.JSONObject
+END RECORD
+
+#One locale a caller can offer the user, with a preview of what the export
+#would look like under it. The four members match, in order, the screen
+#record a picker form binds them to.
+PUBLIC TYPE TLocaleInfo RECORD
+   localeTag STRING,
+   displayName STRING,
+   dateFormat STRING,
+   currencySymbol STRING
 END RECORD
 
 PUBLIC TYPE THeaderRow RECORD
@@ -85,6 +97,11 @@ PRIVATE DEFINE envCurrencyRead BOOLEAN
 #An explicit locale for the machine-locale fallback, as a language tag such
 #as "en-GB". NULL means the machine's own locale is used.
 PRIVATE DEFINE ovLocale STRING
+
+#The locale list the runtime can offer. It cannot change while the program
+#runs and takes a moment to build, so it is built once.
+PRIVATE DEFINE localeCache DYNAMIC ARRAY OF TLocaleInfo
+PRIVATE DEFINE localeCacheBuilt BOOLEAN
 
 #Selects how date, time and monetary cells are formatted. Pass one of
 #cFormatModeLocale (the default), cFormatModeViewer or cFormatModeISO.
@@ -376,17 +393,16 @@ END FUNCTION #javaPatternToExcel
 
 #The Excel date format code of the machine's locale, or NULL when the JVM
 #cannot offer one in a shape Excel understands.
-PRIVATE FUNCTION machineDateCode() RETURNS STRING
-   DEFINE loc Locale
+PRIVATE FUNCTION dateCodeForLocale(loc Locale) RETURNS STRING
    DEFINE df DateFormat
    DEFINE sdf SimpleDateFormat
    DEFINE code STRING
 
+   IF loc IS NULL THEN
+      RETURN NULL
+   END IF
+
    TRY
-      LET loc = resolveLocale()
-      IF loc IS NULL THEN
-         RETURN NULL
-      END IF
       LET df = DateFormat.getDateInstance(DateFormat.SHORT, loc)
       LET sdf = CAST(df AS SimpleDateFormat)
       LET code = javaPatternToExcel(sdf.toPattern())
@@ -396,11 +412,26 @@ PRIVATE FUNCTION machineDateCode() RETURNS STRING
 
    RETURN code
 
+END FUNCTION #dateCodeForLocale
+
+PRIVATE FUNCTION machineDateCode() RETURNS STRING
+
+   RETURN dateCodeForLocale(resolveLocale())
+
 END FUNCTION #machineDateCode
 
 #The currency symbol of the machine's locale, and whether it leads the value.
 PRIVATE FUNCTION machineCurrency() RETURNS (STRING, BOOLEAN)
-   DEFINE loc Locale
+   DEFINE symbol STRING
+   DEFINE isFront BOOLEAN
+
+   CALL currencyForLocale(resolveLocale()) RETURNING symbol, isFront
+
+   RETURN symbol, isFront
+
+END FUNCTION #machineCurrency
+
+PRIVATE FUNCTION currencyForLocale(loc Locale) RETURNS (STRING, BOOLEAN)
    DEFINE nf NumberFormat
    DEFINE dfm DecimalFormat
    DEFINE syms DecimalFormatSymbols
@@ -409,11 +440,11 @@ PRIVATE FUNCTION machineCurrency() RETURNS (STRING, BOOLEAN)
    DEFINE symbolPos INTEGER
    DEFINE digitPos INTEGER
 
+   IF loc IS NULL THEN
+      RETURN NULL, TRUE
+   END IF
+
    TRY
-      LET loc = resolveLocale()
-      IF loc IS NULL THEN
-         RETURN NULL, TRUE
-      END IF
       LET syms = DecimalFormatSymbols.getInstance(loc)
       LET symbol = syms.getCurrencySymbol()
 
@@ -436,7 +467,55 @@ PRIVATE FUNCTION machineCurrency() RETURNS (STRING, BOOLEAN)
 
    RETURN symbol, (symbolPos == 0 OR digitPos == 0 OR symbolPos < digitPos)
 
-END FUNCTION #machineCurrency
+END FUNCTION #currencyForLocale
+
+#Every locale the runtime can format for, sorted by the name it shows under.
+#Locales carrying no country are left out: they name a language only, and so
+#imply no date order and no currency. Intended for a picker that lets the user
+#choose the locale an export is formatted in - see setLocale().
+PUBLIC FUNCTION getAvailableLocales() RETURNS DYNAMIC ARRAY OF TLocaleInfo
+   DEFINE locales DYNAMIC ARRAY OF TLocaleInfo
+   DEFINE available localeArray
+   DEFINE loc Locale
+   DEFINE country STRING
+   DEFINE idx INTEGER
+   DEFINE count INTEGER = 0
+   DEFINE isFront BOOLEAN
+
+   IF localeCacheBuilt THEN
+      CALL localeCache.copyTo(locales)
+      RETURN locales
+   END IF
+
+   TRY
+      LET available = Locale.getAvailableLocales()
+   CATCH
+      RETURN locales
+   END TRY
+
+   FOR idx = 1 TO available.getLength()
+      LET loc = available[idx]
+      LET country = loc.getCountry()
+      IF country IS NULL OR country.getLength() == 0 THEN
+         CONTINUE FOR
+      END IF
+
+      LET count = count + 1
+      LET locales[count].localeTag = loc.toLanguageTag()
+      LET locales[count].displayName = loc.getDisplayName()
+      LET locales[count].dateFormat = dateCodeForLocale(loc)
+      CALL currencyForLocale(loc)
+         RETURNING locales[count].currencySymbol, isFront
+   END FOR
+
+   CALL locales.sort("displayName", FALSE)
+
+   CALL locales.copyTo(localeCache)
+   LET localeCacheBuilt = TRUE
+
+   RETURN locales
+
+END FUNCTION #getAvailableLocales
 
 #The Excel date format code implied by DBDATE. DBDATE is
 #  { DM | MD } { Y2 | Y3 | Y4 } { / | - | . | 0 } [C1]
