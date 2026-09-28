@@ -431,41 +431,69 @@ PRIVATE FUNCTION machineCurrency() RETURNS (STRING, BOOLEAN)
 
 END FUNCTION #machineCurrency
 
+#The currency symbol of a locale, whether it leads the value, and whether the
+#locale separates the two with a space - "£1,234.56" but "1.234,56 €".
+#The currency affix of a locale and whether it leads the value. The affix is
+#taken straight out of a formatted sample - everything before the first digit,
+#or after the last - so it carries the locale's own spacing with it: "$" leads
+#with nothing between, while many euro locales trail with a space, and that
+#space is part of the convention rather than decoration.
+#
+#Reading the sample rather than the pattern also sidesteps two traps. Genero
+#string positions here are byte offsets, so stepping one place either side of a
+#currency sign lands inside it - the sign is two or three bytes - and the space
+#a locale uses is often a non-breaking one. Digits are single bytes in UTF-8
+#and no multi-byte character contains a byte in the ASCII range, so scanning
+#for the digits is safe where scanning around the symbol is not.
 PRIVATE FUNCTION currencyForLocale(loc Locale) RETURNS (STRING, BOOLEAN)
    DEFINE nf NumberFormat
    DEFINE dfm DecimalFormat
-   DEFINE syms DecimalFormatSymbols
-   DEFINE symbol STRING
-   DEFINE pattern STRING
-   DEFINE symbolPos INTEGER
-   DEFINE digitPos INTEGER
+   DEFINE sample STRING
+   DEFINE idx INTEGER
+   DEFINE firstDigit INTEGER = 0
+   DEFINE lastDigit INTEGER = 0
 
    IF loc IS NULL THEN
       RETURN NULL, TRUE
    END IF
 
    TRY
-      LET syms = DecimalFormatSymbols.getInstance(loc)
-      LET symbol = syms.getCurrencySymbol()
-
-      #The currency pattern puts the placeholder either side of the digits
       LET nf = NumberFormat.getCurrencyInstance(loc)
       LET dfm = CAST(nf AS DecimalFormat)
-      LET pattern = dfm.toPattern()
-      LET symbolPos = pattern.getIndexOf("\u00A4", 1)
-      LET digitPos = pattern.getIndexOf("#", 1)
-      IF digitPos == 0 THEN
-         LET digitPos = pattern.getIndexOf("0", 1)
-      END IF
+      #A positive value, so that no sign joins the affix
+      LET sample = dfm.format(1234.56)
    CATCH
       RETURN NULL, TRUE
    END TRY
 
-   IF symbol IS NULL OR symbol.getLength() == 0 THEN
+   IF sample IS NULL OR sample.getLength() == 0 THEN
       RETURN NULL, TRUE
    END IF
 
-   RETURN symbol, (symbolPos == 0 OR digitPos == 0 OR symbolPos < digitPos)
+   FOR idx = 1 TO sample.getLength()
+      IF sample.getCharAt(idx) MATCHES "[0-9]" THEN
+         IF firstDigit == 0 THEN
+            LET firstDigit = idx
+         END IF
+         LET lastDigit = idx
+      END IF
+   END FOR
+
+   IF firstDigit == 0 THEN
+      #No digits at all: nothing to take an affix from
+      RETURN NULL, TRUE
+   END IF
+
+   IF firstDigit > 1 THEN
+      RETURN sample.subString(1, firstDigit - 1), TRUE
+   END IF
+
+   IF lastDigit < sample.getLength() THEN
+      RETURN sample.subString(lastDigit + 1, sample.getLength()), FALSE
+   END IF
+
+   #The locale formats money with no symbol at all
+   RETURN NULL, TRUE
 
 END FUNCTION #currencyForLocale
 
@@ -481,6 +509,7 @@ PUBLIC FUNCTION getAvailableLocales() RETURNS DYNAMIC ARRAY OF TLocaleInfo
    DEFINE idx INTEGER
    DEFINE count INTEGER = 0
    DEFINE isFront BOOLEAN
+   DEFINE affix STRING
 
    IF localeCacheBuilt THEN
       CALL localeCache.copyTo(locales)
@@ -504,8 +533,10 @@ PUBLIC FUNCTION getAvailableLocales() RETURNS DYNAMIC ARRAY OF TLocaleInfo
       LET locales[count].localeTag = loc.toLanguageTag()
       LET locales[count].displayName = loc.getDisplayName()
       LET locales[count].dateFormat = dateCodeForLocale(loc)
-      CALL currencyForLocale(loc)
-         RETURNING locales[count].currencySymbol, isFront
+      CALL currencyForLocale(loc) RETURNING affix, isFront
+      IF affix IS NOT NULL THEN
+         LET locales[count].currencySymbol = affix.trimWhiteSpace()
+      END IF
    END FOR
 
    CALL locales.sort("displayName", FALSE)

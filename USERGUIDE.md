@@ -308,13 +308,24 @@ CALL fgl_spreadsheet_helper.setMoneyFormat("[$£-809]#,##0.00;[Red]-[$£-809]#,#
 
 The codes are Excel number format codes, written into the workbook as given.
 
-> **Note on separators.** Excel treats `.` and `,` inside a number format code
-> as placeholders and fills them from the regional settings of the machine
-> viewing the file. The decimal and thousands separators of a number therefore
-> follow the viewer even in `cFormatModeLocale`; the currency symbol, the
-> number of decimal places, and the whole of the date format do not. To pin the
-> separators as well, give `setMoneyFormat()` a code carrying an explicit
-> locale id, as in the `[$£-809]` example above.
+> **Note on separators.** A `.` and a `,` inside a number format code are
+> **placeholders, not literals** — `#,##0.00` means "grouped, two decimals",
+> and Excel fills in the actual characters from the regional settings of the
+> machine viewing the file. A German viewer sees `1.234,56` from that very
+> code. So a format code is never rewritten per country: `#.##0,00` is not the
+> German spelling of it, it is wrong. Java's own currency patterns work the
+> same way, which is why `de-DE` reports `#,##0.00 ¤` while printing
+> `1.234,56 €`.
+>
+> What this means in practice: the decimal and thousands separators follow the
+> viewer even in `cFormatModeLocale`. The currency symbol, **its position and
+> spacing**, the number of decimal places and the whole date format do not —
+> those are pinned. To pin the separators too, give `setMoneyFormat()` a code
+> carrying an explicit locale id, as in the `[$£-809]` example above.
+>
+> Note also that separators follow the *country*, not the currency. The euro is
+> written `1.234,56 €` in Germany, `1 234,56 €` in France and `€1,234.56` in
+> Ireland — the same currency, three conventions.
 
 **Reading the current settings:**
 
