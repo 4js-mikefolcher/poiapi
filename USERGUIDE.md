@@ -566,11 +566,13 @@ DISPLAY SFMT("File created: %1", excelHandler.getFilename())
 | `setTitle(title STRING)` | Set the sheet tab name |
 | `setGroupColumn(groupCol BOOLEAN)` | Show/hide the "Report Group" column (default: `FALSE`) |
 | `setDisplayGrandTotals(display BOOLEAN)` | Show/hide grand total row at bottom (default: `TRUE`) |
+| `setGroupFooterLabel(template STRING)` | How a group footer is labelled; `%1` is the group title (default: `"Total %1"`) |
 | `setMultiSheetMode(mode BOOLEAN)` | Enable multi-sheet workbook mode (default: `FALSE`) |
 | `addSubTitle(title STRING)` | Add a merged subtitle row above the column headers |
 | `addDataRow(rowData util.JSONObject)` | Add a data row |
 | `addGroupHeaderRow(group_id STRING, group_title STRING)` | Push a group header onto the stack |
 | `addGroupFooterRow(group_id STRING)` | Pop the innermost group and generate subtotal formulas |
+| `getGroupFooterLabel() RETURNS STRING` | The current group footer label template |
 | `createSpreadsheet() RETURNS BOOLEAN` | Render the sheet (and write to file unless in multi-sheet mode) |
 | `createFile()` | Write the workbook to disk (multi-sheet mode only) |
 | `getFilename() RETURNS STRING` | Get the output file path |
