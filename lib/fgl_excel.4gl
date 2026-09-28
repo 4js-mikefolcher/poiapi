@@ -402,6 +402,13 @@ END FUNCTION #freeze_rows
 #throw an IllegalArgumentException).
 PRIVATE FUNCTION sanitizeSheetName(sheetName STRING) RETURNS (STRING)
    DEFINE buf base.StringBuffer
+   DEFINE name STRING
+   #Excel rejects a tab name longer than this
+   CONSTANT cMaxSheetNameLength = 31
+
+   IF sheetName IS NULL THEN
+      RETURN NULL
+   END IF
 
    LET buf = base.StringBuffer.create()
    CALL buf.append(sheetName)
@@ -412,14 +419,28 @@ PRIVATE FUNCTION sanitizeSheetName(sheetName STRING) RETURNS (STRING)
    CALL buf.replace("[", "", 0)
    CALL buf.replace("]", "", 0)
    CALL buf.replace(":", "", 0)
-   RETURN buf.toString()
+
+   LET name = buf.toString()
+   LET name = name.trim()
+   IF name.getLength() > cMaxSheetNameLength THEN
+      LET name = name.subString(1, cMaxSheetNameLength)
+   END IF
+
+   RETURN name
 END FUNCTION
 
 PUBLIC FUNCTION workbook_createsheet_with_name(w workbookType, sheetName STRING) RETURNS (sheetType)
    DEFINE s sheetType
+   DEFINE name STRING
 
-    LET s= w.createSheet(sanitizeSheetName(sheetName))
-    RETURN s
+   LET name = sanitizeSheetName(sheetName)
+   IF name IS NULL OR name.getLength() == 0 THEN
+      #Nothing usable left to name the tab with: let POI name it
+      RETURN w.createSheet()
+   END IF
+
+   LET s = w.createSheet(name)
+   RETURN s
 
 END FUNCTION
 

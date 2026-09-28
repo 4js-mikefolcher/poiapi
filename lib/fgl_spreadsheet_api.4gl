@@ -103,7 +103,9 @@ PUBLIC FUNCTION (self TSpreadsheet) createSpreadsheet(jsonArray util.JSONArray) 
 	TRY
 		#Initialize Workbook and Spreadsheet
 		LET self.workbook = fgl_excel.workbook_create()
-		LET self.sheet = fgl_excel.workbook_createsheet(self.workbook)
+		#Name the tab after the title, as TSpreadsheetXtend does, rather than
+		#leaving POI to call it "Sheet0"
+		LET self.sheet = fgl_excel.workbook_createsheet_with_name(self.workbook, self.title)
 
 		#Create header style
 		CALL fgl_excel.font_create(self.workbook) RETURNING headerFont
