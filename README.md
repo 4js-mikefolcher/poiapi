@@ -8,6 +8,7 @@ A Genero BDL package for creating Microsoft Excel (.xlsx) files using the Apache
 - **TSpreadsheetXtend** - Grouped data with subtotals, subtitles, multi-level nesting, and multi-sheet workbooks
 - **tableExcelExport** - One-call export directly from a UI Table widget, with support for column reordering, sorting, and aggregate totals
 - Automatic Excel formatting for all Genero data types (MONEY, DECIMAL, INTEGER, FLOAT, DATE, DATETIME, etc.)
+- Dates and currency written in the locale of the machine the Genero application runs on, honouring `DBDATE`, `DBFORMAT` and `DBMONEY`, with a named locale, explicit format codes or viewer-resolved formatting as alternatives
 - Native Excel formula generation for subtotals (SUM, AVG, COUNT, MIN, MAX)
 - Page setup with landscape orientation, frozen panes, repeating headers, and page numbers
 
@@ -25,7 +26,7 @@ Add `poiapi` as a dependency in your project's `fglpkg.json`:
   "version": "1.0.0",
   "dependencies": {
     "fgl": {
-      "poiapi": "^1.8.0"
+      "poiapi": "^1.9.0"
     }
   }
 }
@@ -105,6 +106,30 @@ DISPLAY ARRAY dataList TO s_table.*
 END DISPLAY
 ```
 
+### Controlling the Formats
+
+Dates and money follow `DBDATE`, `DBFORMAT` and `DBMONEY`, falling back to the
+locale of the machine the program runs on. Call these before building a
+spreadsheet to override that; they apply to all three APIs.
+
+```4gl
+IMPORT FGL com.fourjs.poiapi.fgl_spreadsheet_helper
+
+# Export in a named locale rather than the machine's
+CALL fgl_spreadsheet_helper.setLocale("de-DE")
+
+# Or pin one column type to a format code of your own
+CALL fgl_spreadsheet_helper.setDateFormat("yyyy-mm-dd")
+
+# Or hand the whole decision back to whoever opens the file
+CALL fgl_spreadsheet_helper.setFormatMode(
+    fgl_spreadsheet_helper.cFormatModeViewer)
+```
+
+`getAvailableLocales()` returns every locale the runtime can format for, ready
+to put in front of the user — see
+[USERGUIDE.md](USERGUIDE.md#overriding-the-formats).
+
 ## Package Structure
 
 ```
@@ -120,13 +145,18 @@ com.fourjs.poiapi/
 
 ## Test Program
 
-The `src/` directory contains `fgl_excel_api_test.4gl`, a test program with five examples:
+The `src/` directory contains `fgl_excel_api_test.4gl`, a test program with six examples:
 
 1. **excelAPIExample** - Basic TSpreadsheet export with all data types
 2. **excelXAPIExample** - TSpreadsheetXtend with multi-level grouping (5/10/20 row intervals) and subtotals
 3. **excelMultisheetExample** - Multi-sheet workbook with four sheets using different record types and configurations
 4. **excelTable** - UI Table export without aggregates
 5. **xtendExcelTable** - UI Table export with aggregate totals defined in the form
+6. **excelFormatModesExample** - One workbook whose eight sheets each carry the same data under a different format mode, override or locale, so they can be compared side by side
+
+Every table screen also carries an **Export to Excel (locale...)** action, which
+opens a modal picker over `getAvailableLocales()` and exports in the locale
+chosen — a worked example of a locale picker.
 
 ## Documentation
 

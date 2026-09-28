@@ -10,6 +10,11 @@ The POI API package (`com.fourjs.poiapi`) provides a Genero BDL library for crea
 | **TSpreadsheetXtend** | `fgl_spreadsheet_xapi` | Grouped data with subtotals, subtitles, and multi-sheet workbooks |
 | **tableExcelExport** | `fgl_table_export` | One-call export directly from a UI Table widget |
 
+All three format dates, times and money the same way, from the settings and
+locale of the machine the application runs on. `fgl_spreadsheet_helper` makes
+that choice for all of them, and
+[Overriding the formats](#overriding-the-formats) covers how to change it.
+
 ---
 
 ## Installation
@@ -100,7 +105,7 @@ Or by manually editing your project's `fglpkg.json` to include the dependency:
   "version": "1.0.0",
   "dependencies": {
     "fgl": {
-      "poiapi": "^1.8.0"
+      "poiapi": "^1.9.0"
     }
   }
 }
@@ -145,7 +150,7 @@ The `poiapi` package declares its Java dependencies in its own `fglpkg.json`. Wh
 
 You do not need to download or manage any of these manually.
 
-> The versions above are those pinned by poiapi 1.8.0. `fglpkg.json` in this
+> The versions above are those pinned by poiapi 1.9.0. `fglpkg.json` in this
 > repository is the authoritative list — check it there if this table and the
 > package disagree.
 
@@ -412,7 +417,7 @@ END MAIN
 | `init()` | Reset all properties to their initial state |
 | `setHeaders(headers DYNAMIC ARRAY OF STRING)` | Set column header labels |
 | `setRecordDefinition(parentNode om.DomNode)` | Set field names and types from a `base.TypeInfo.create()` node |
-| `setTitle(title STRING)` | Set the sheet title |
+| `setTitle(title STRING)` | Set the sheet title, which also names the sheet tab |
 | `createSpreadsheet(jsonArray util.JSONArray) RETURNS BOOLEAN` | Generate the Excel file; returns `TRUE` on success |
 | `getFilename() RETURNS STRING` | Get the output file path (auto-generated temp file if not set) |
 
@@ -423,6 +428,11 @@ END MAIN
 - If you do not set a filename, one is automatically generated in the system temp directory.
 - Column headers appear as bold, centered text in the first row.
 - Columns are auto-sized to fit content.
+- The sheet tab is named after the title. A title Excel will not accept as a tab
+  name — over 31 characters, or containing `\ / ? * [ ] :` — is trimmed to fit;
+  if nothing usable is left, POI names the tab itself.
+- Date and money formats come from `fgl_spreadsheet_helper`, so
+  [the format overrides](#overriding-the-formats) apply here unchanged.
 
 ---
 
@@ -703,6 +713,39 @@ CLOSE WINDOW w
 - Creates a subtitle row using the window title
 - Auto-sizes columns and applies data type formatting
 
+### Exporting in a Chosen Locale
+
+`tableExcelExport()` takes its formats from `fgl_spreadsheet_helper` like the
+other two APIs, so setting a locale before the call is enough to change them:
+
+```4gl
+ON ACTION export_to_excel_locale ATTRIBUTES(TEXT="Export to Excel (locale...)")
+    #pickLocale() returns the chosen language tag, or NULL if cancelled
+    LET localeTag = pickLocale()
+    IF localeTag IS NOT NULL THEN
+        CALL fgl_spreadsheet_helper.setLocale(localeTag)
+        TRY
+            LET filename = fgl_table_export.tableExcelExport(
+                "s_table", util.JSONArray.fromFGL(dataList))
+        CATCH
+            CALL fgl_spreadsheet_helper.setLocale(NULL)
+            ERROR SFMT("The export failed: %1", STATUS)
+            RETURN
+        END TRY
+        CALL fgl_spreadsheet_helper.setLocale(NULL)   -- back to the machine's
+        CALL fgl_putfile(filename, "gbc")
+    END IF
+```
+
+The setting is global to the program and outlives the export, so put it back
+afterwards — on the failure path as well — if the next export should follow the
+machine again.
+
+`src/fgl_excel_api_test.4gl` has `pickLocale()` written out in full: a modal
+`DISPLAY ARRAY` over `getAvailableLocales()`, opening on the locale already in
+force, with `src/fgl_excel_locale_picker.per` as its form. All three of the test
+program's table screens carry the action.
+
 ### Adding Aggregates to the Form
 
 To include aggregate totals in the export, define them on the form's TABLE widget. In your `.per` file, add `AGGREGATE` entries inside the `ATTRIBUTES` section of the TABLE:
@@ -799,7 +842,23 @@ PUBLIC TYPE TDataRow RECORD
     rowType STRING,       # "DATA", "GROUPHEADER", or "GROUPFOOTER"
     rowData util.JSONObject  # Row data as JSON
 END RECORD
+
+PUBLIC TYPE THeaderRow RECORD
+    group_id STRING,      # The group identifier passed to addGroupHeaderRow()
+    group_title STRING    # The title shown on the group header row
+END RECORD
+
+PUBLIC TYPE TLocaleInfo RECORD
+    localeTag STRING,      # "en-GB"
+    displayName STRING,    # "English (United Kingdom)"
+    dateFormat STRING,     # The Excel date code that locale gives
+    currencySymbol STRING  # The symbol that locale formats money with
+END RECORD
 ```
+
+`getAvailableLocales()` returns `TLocaleInfo` rows. Its four members are in the
+order a picker form's `SCREEN RECORD` binds them, so the array can be displayed
+without rearranging it.
 
 ---
 
@@ -820,7 +879,7 @@ com.fourjs.poiapi/
 
 - **fgl_excel** - Direct Java interop layer. Creates workbooks, sheets, rows, cells, styles, and fonts via `IMPORT JAVA`. You generally do not call this module directly.
 - **fgl_structures** - Manages the group row stack used by `TSpreadsheetXtend` to track which data rows belong to which group, enabling correct formula ranges.
-- **fgl_spreadsheet_helper** - Defines shared types (`TFields`, `TColumnInfo`, `TDataRow`), aggregate constants, and utility functions for date/time conversion and cell style creation.
+- **fgl_spreadsheet_helper** - Defines shared types (`TFields`, `TColumnInfo`, `TDataRow`, `TLocaleInfo`), aggregate constants, and utility functions for date/time conversion and cell style creation. It also decides every date, time and currency format the other modules use, and carries the format mode, locale and override functions described in [Overriding the formats](#overriding-the-formats).
 - **fgl_spreadsheet_api** - The `TSpreadsheet` type for simple, flat exports.
 - **fgl_spreadsheet_xapi** - The `TSpreadsheetXtend` type for grouped exports with subtotals and multi-sheet support.
 - **fgl_table_export** - The `tableExcelExport()` function that bridges the UI table AUI tree to the `TSpreadsheetXtend` API.
