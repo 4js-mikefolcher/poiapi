@@ -131,8 +131,7 @@ PRIVATE FUNCTION displayMenuTable() RETURNS ()
 
 		ON ACTION export_to_excel ATTRIBUTES(TEXT="Export to Excel")
 			VAR filename = tableExcelExport("s_menu", util.JSONArray.fromFGL(menuList))
-			DISPLAY filename
-			CALL fgl_putfile(filename, os.Path.baseName(filename))
+			CALL displayFile(filename)
 
 		ON ACTION CANCEL
 			LET int_flag = TRUE
@@ -171,7 +170,6 @@ PRIVATE FUNCTION excelAPIExample() RETURNS ()
 	CALL excelHandler.setTitle("Test Spreadsheet API")
 	IF excelHandler.createSpreadsheet(util.JSONArray.fromFGL(dataList)) THEN
 		CALL displayFile(excelHandler.getFilename())
-		DISPLAY SFMT("Excel file path: %1", excelHandler.getFilename())
 	END IF
 
 END FUNCTION
@@ -193,7 +191,8 @@ PRIVATE FUNCTION excelHeader() RETURNS DYNAMIC ARRAY OF STRING
 		"Varchar",
 		"Float",
 		"Small Float",
-		"Boolean"
+		"Boolean",
+		"Combo"
 	]
 
 	RETURN headerList
@@ -242,7 +241,6 @@ PRIVATE FUNCTION excelXAPIExample() RETURNS ()
     END FOR
 
 	IF excelHandler.createSpreadsheet() THEN
-		DISPLAY SFMT("Excel file path: %1", excelHandler.getFilename())
 		CALL displayFile(excelHandler.getFilename())
 	END IF
 
@@ -275,7 +273,6 @@ PRIVATE FUNCTION excelMultisheetExample() RETURNS ()
 
     CALL excelHandler.createFile()
 
-	 DISPLAY SFMT("Excel file path: %1", excelHandler.getFilename())
 	 CALL displayFile(excelHandler.getFilename())
 
 END FUNCTION
@@ -487,7 +484,6 @@ PRIVATE FUNCTION excelTable() RETURNS ()
 
 		ON ACTION export_to_excel ATTRIBUTES(TEXT="Export to Excel")
 			VAR filename = tableExcelExport("s_table", util.JSONArray.fromFGL(dataList))
-			DISPLAY filename
 			CALL displayFile(filename)
 
 		AFTER DISPLAY
@@ -540,7 +536,6 @@ PRIVATE FUNCTION xtendExcelTable() RETURNS ()
 
 		ON ACTION export_to_excel ATTRIBUTES(TEXT="Export to Excel")
 			VAR filename = tableExcelExport("s_xtend", util.JSONArray.fromFGL(xtendList))
-			DISPLAY filename
 			CALL displayFile(filename)
 
 		AFTER DISPLAY
@@ -552,14 +547,25 @@ PRIVATE FUNCTION xtendExcelTable() RETURNS ()
 
 END FUNCTION #xtendExcelTable
 
+#Tells the user the file was written. A DISPLAY without a TO clause goes to
+#stdout, so on a graphical front-end it is never seen.
+PRIVATE FUNCTION confirmFile(excelFilename STRING) RETURNS ()
+
+	MESSAGE SFMT("Excel file created: %1", os.Path.baseName(excelFilename))
+	DISPLAY SFMT("Excel file path: %1", excelFilename)
+
+END FUNCTION #confirmFile
+
 PRIVATE FUNCTION displayFile(excelFilename STRING) RETURNS ()
 
 	CASE interactiveMode
 		WHEN "web"
 			CALL fgl_putfile(excelFilename, os.Path.baseName(excelFilename))
+			CALL confirmFile(excelFilename)
 		WHEN "desktop"
 			VAR clientFilename = os.Path.baseName(excelFilename)
 			CALL fgl_putfile(excelFilename, clientFilename)
+			CALL confirmFile(excelFilename)
 		OTHERWISE
 			DISPLAY SFMT("Excel file created: %1", excelFilename)
 	END CASE
