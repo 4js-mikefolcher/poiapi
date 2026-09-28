@@ -125,14 +125,21 @@ PRIVATE FUNCTION displayMenuTable() RETURNS ()
 	LET menuList[idx].menu_function = "xtendExcelTable()"
 	LET menuList[idx].menu_descript = "Function to test the Export to Excel UI Table API with Aggregate Totals"
 
+	LET idx = 6
+	LET menuList[idx].menu_id = idx
+	LET menuList[idx].menu_function = "excelFormatModesExample()"
+	LET menuList[idx].menu_descript = "Function to test the date, time and currency cell format controls"
+
 	OPEN WINDOW mainWindow WITH FORM "fgl_excel_menu_table"
 
 	DISPLAY ARRAY menuList TO s_menu.*
 
 		ON ACTION export_to_excel ATTRIBUTES(TEXT="Export to Excel")
 			VAR filename = tableExcelExport("s_menu", util.JSONArray.fromFGL(menuList))
-			DISPLAY filename
-			CALL fgl_putfile(filename, os.Path.baseName(filename))
+			CALL displayFile(filename)
+
+		ON ACTION export_to_excel_locale ATTRIBUTES(TEXT="Export to Excel (locale...)")
+			CALL exportTableWithLocale("s_menu", util.JSONArray.fromFGL(menuList))
 
 		ON ACTION CANCEL
 			LET int_flag = TRUE
@@ -151,6 +158,8 @@ PRIVATE FUNCTION displayMenuTable() RETURNS ()
 					CALL excelTable()
 				WHEN 5
 					CALL xtendExcelTable()
+				WHEN 6
+					CALL excelFormatModesExample()
 			END CASE
 			LET int_flag = FALSE
 			CONTINUE DISPLAY
@@ -171,7 +180,6 @@ PRIVATE FUNCTION excelAPIExample() RETURNS ()
 	CALL excelHandler.setTitle("Test Spreadsheet API")
 	IF excelHandler.createSpreadsheet(util.JSONArray.fromFGL(dataList)) THEN
 		CALL displayFile(excelHandler.getFilename())
-		DISPLAY SFMT("Excel file path: %1", excelHandler.getFilename())
 	END IF
 
 END FUNCTION
@@ -193,7 +201,8 @@ PRIVATE FUNCTION excelHeader() RETURNS DYNAMIC ARRAY OF STRING
 		"Varchar",
 		"Float",
 		"Small Float",
-		"Boolean"
+		"Boolean",
+		"Combo"
 	]
 
 	RETURN headerList
@@ -210,6 +219,8 @@ PRIVATE FUNCTION excelXAPIExample() RETURNS ()
 	CALL excelHandler.setRecordDefinition(base.TypeInfo.create(dataRec))
 	CALL excelHandler.setTitle("Test Spreadsheet XAPI")
     CALL excelHandler.setGroupColumn(TRUE)
+    #The default: a group footer reads "Total <group title>"
+    CALL excelHandler.setGroupFooterLabel(fgl_spreadsheet_xapi.cDefaultGroupFooterLabel)
     CALL excelHandler.addSubTitle("Test Spreadsheet XAPI")
     CALL excelHandler.addSubTitle("This is a test of the sub title stuff")
     #CALL excelHandler.setDisplayGrandTotals(FALSE)
@@ -242,7 +253,6 @@ PRIVATE FUNCTION excelXAPIExample() RETURNS ()
     END FOR
 
 	IF excelHandler.createSpreadsheet() THEN
-		DISPLAY SFMT("Excel file path: %1", excelHandler.getFilename())
 		CALL displayFile(excelHandler.getFilename())
 	END IF
 
@@ -275,7 +285,6 @@ PRIVATE FUNCTION excelMultisheetExample() RETURNS ()
 
     CALL excelHandler.createFile()
 
-	 DISPLAY SFMT("Excel file path: %1", excelHandler.getFilename())
 	 CALL displayFile(excelHandler.getFilename())
 
 END FUNCTION
@@ -387,7 +396,8 @@ PRIVATE FUNCTION columnInfoArray() RETURNS (DYNAMIC ARRAY OF TColumnInfo)
 		(colTitle: "Varchar", colCalc: fgl_spreadsheet_helper.cExcelNone),
 		(colTitle: "Float", colCalc: fgl_spreadsheet_helper.cExcelSum),
 		(colTitle: "Small Float", colCalc: fgl_spreadsheet_helper.cExcelSum),
-		(colTitle: "Boolean", colCalc: fgl_spreadsheet_helper.cExcelNone)
+		(colTitle: "Boolean", colCalc: fgl_spreadsheet_helper.cExcelNone),
+		(colTitle: "Combo", colCalc: fgl_spreadsheet_helper.cExcelNone)
 	]
 
    RETURN colInfoArray
@@ -476,6 +486,190 @@ PRIVATE FUNCTION getLastName(idx INTEGER) RETURNS (STRING)
 
 END FUNCTION
 
+#Demonstrates the cell format controls of fgl_spreadsheet_helper: one sheet
+#per format mode, then sheets using explicit format codes. The formats change
+#between the sheets of a single workbook, so this also covers the cached cell
+#styles being dropped when a format setting changes.
+#Lets the user choose the locale an export is formatted in, and returns the
+#language tag they picked, or NULL if they backed out. The list is every locale
+#the runtime can format for, which is long - the table sorts on any column, and
+#it opens on the locale the export would have used anyway.
+PRIVATE FUNCTION pickLocale() RETURNS STRING
+	DEFINE locales DYNAMIC ARRAY OF fgl_spreadsheet_helper.TLocaleInfo
+	DEFINE chosenRow INTEGER = 0
+	DEFINE currentTag STRING
+	DEFINE currentRow INTEGER
+
+	LET locales = fgl_spreadsheet_helper.getAvailableLocales()
+	IF locales.getLength() == 0 THEN
+		ERROR "The runtime offers no locales to choose from"
+		RETURN NULL
+	END IF
+
+	OPEN WINDOW w_locale WITH FORM "fgl_excel_locale_picker" ATTRIBUTES(STYLE="dialog")
+
+	#One row at a time: a DISPLAY ARRAY selects a single current row unless
+	#multi-row selection is turned on, which is what is wanted here
+	DISPLAY ARRAY locales TO s_locales.* ATTRIBUTES(UNBUFFERED, DOUBLECLICK=accept)
+
+		BEFORE DISPLAY
+			#Open on the locale the export would use if nothing were chosen
+			LET currentTag = fgl_spreadsheet_helper.getLocale()
+			IF currentTag IS NOT NULL THEN
+				LET currentRow = locales.search("localeTag", currentTag)
+				IF currentRow > 0 THEN
+					CALL DIALOG.setCurrentRow("s_locales", currentRow)
+				END IF
+			END IF
+
+		ON ACTION accept
+			#Read the row inside the dialog: the built-in column sort reorders
+			#the view only, so this stays the index into the program array
+			LET chosenRow = DIALOG.getCurrentRow("s_locales")
+			ACCEPT DISPLAY
+
+		ON ACTION cancel
+			LET chosenRow = 0
+			EXIT DISPLAY
+
+	END DISPLAY
+
+	CLOSE WINDOW w_locale
+
+	IF chosenRow == 0 THEN
+		RETURN NULL
+	END IF
+
+	RETURN locales[chosenRow].localeTag
+
+END FUNCTION #pickLocale
+
+#Exports a UI table after asking which locale to format it in. The locale is
+#put back afterwards, so the choice applies to this one export.
+PRIVATE FUNCTION exportTableWithLocale(tableName STRING, jsonData util.JSONArray) RETURNS ()
+	DEFINE localeTag STRING
+	DEFINE filename STRING
+
+	LET localeTag = pickLocale()
+	IF localeTag IS NULL THEN
+		RETURN
+	END IF
+
+	CALL fgl_spreadsheet_helper.setLocale(localeTag)
+	TRY
+		LET filename = tableExcelExport(tableName, jsonData)
+	CATCH
+		CALL fgl_spreadsheet_helper.setLocale(NULL)
+		ERROR SFMT("The export failed: %1", STATUS)
+		RETURN
+	END TRY
+	CALL fgl_spreadsheet_helper.setLocale(NULL)
+
+	CALL displayFile(filename)
+
+END FUNCTION #exportTableWithLocale
+
+PRIVATE FUNCTION excelFormatModesExample() RETURNS ()
+	DEFINE excelHandler fgl_spreadsheet_xapi.TSpreadsheetXtend
+
+	CALL excelHandler.init()
+	CALL excelHandler.setMultisheetMode(TRUE)
+
+	#The default: dates and money follow DBDATE, DBFORMAT and DBMONEY
+	CALL fgl_spreadsheet_helper.clearFormatOverrides()
+	CALL fgl_spreadsheet_helper.setFormatMode(fgl_spreadsheet_helper.cFormatModeLocale)
+	IF NOT createFormatSheet(excelHandler, "Locale") THEN RETURN END IF
+
+	#ISO 8601 dates, 24 hour times, no currency symbol
+	CALL fgl_spreadsheet_helper.setFormatMode(fgl_spreadsheet_helper.cFormatModeISO)
+	IF NOT createFormatSheet(excelHandler, "ISO") THEN RETURN END IF
+
+	#No format codes written at all: the machine opening the file decides
+	CALL fgl_spreadsheet_helper.setFormatMode(fgl_spreadsheet_helper.cFormatModeViewer)
+	IF NOT createFormatSheet(excelHandler, "Viewer") THEN RETURN END IF
+
+	#Explicit format codes, which win over whatever the mode would give
+	CALL fgl_spreadsheet_helper.setFormatMode(fgl_spreadsheet_helper.cFormatModeLocale)
+	CALL fgl_spreadsheet_helper.setDateFormat("dd-mmm-yyyy")
+	CALL fgl_spreadsheet_helper.setDatetimeFormat("dd-mmm-yyyy hh:mm")
+	CALL fgl_spreadsheet_helper.setTimeFormat("hh:mm AM/PM")
+	CALL fgl_spreadsheet_helper.setCurrencySymbol("GBP ")
+	IF NOT createFormatSheet(excelHandler, "Overrides") THEN RETURN END IF
+
+	#A money code carrying its own symbol, decimals and locale. The locale id
+	#pins the thousands and decimal separators, which a plain code leaves to
+	#the regional settings of the machine viewing the file.
+	CALL fgl_spreadsheet_helper.setMoneyFormat("[$GBP-809]#,##0.00;[Red]([$GBP-809]#,##0.00)")
+	IF NOT createFormatSheet(excelHandler, "Money code") THEN RETURN END IF
+
+	#Naming a locale drives the same fallback that an unset DBDATE and DBMONEY
+	#would reach, without having to change the machine to try it. Everything
+	#else is back to the defaults so that the locale alone decides.
+	CALL fgl_spreadsheet_helper.clearFormatOverrides()
+	CALL fgl_spreadsheet_helper.setLocale("en-GB")
+	IF NOT createFormatSheet(excelHandler, "Locale en-GB") THEN RETURN END IF
+
+	CALL fgl_spreadsheet_helper.setLocale("de-DE")
+	IF NOT createFormatSheet(excelHandler, "Locale de-DE") THEN RETURN END IF
+
+	CALL fgl_spreadsheet_helper.setLocale("ja-JP")
+	IF NOT createFormatSheet(excelHandler, "Locale ja-JP") THEN RETURN END IF
+
+	CALL excelHandler.createFile()
+
+	#Put the helper back as it was found. These settings are module-wide, so
+	#they would otherwise follow every later export off this menu.
+	CALL fgl_spreadsheet_helper.clearFormatOverrides()
+	CALL fgl_spreadsheet_helper.setFormatMode(fgl_spreadsheet_helper.cFormatModeLocale)
+
+	CALL displayFile(excelHandler.getFilename())
+
+END FUNCTION #excelFormatModesExample
+
+#One sheet of the format example. The subtitles report what the helper
+#resolved the current settings to, so each sheet says how it was formatted.
+PRIVATE FUNCTION createFormatSheet(excelHandler fgl_spreadsheet_xapi.TSpreadsheetXtend INOUT,
+                                   sheetName STRING) RETURNS BOOLEAN
+	DEFINE idx INTEGER
+	CONSTANT cViewerDecides = "<none - the viewer decides>"
+
+	CALL excelHandler.initNewSheet()
+	CALL excelHandler.setColumnInfo(columnInfoArray())
+	CALL excelHandler.setRecordDefinition(base.TypeInfo.create(dataRec))
+	CALL excelHandler.setTitle(sheetName)
+	CALL excelHandler.setGroupColumn(TRUE)
+	CALL excelHandler.setGroupFooterLabel("%1 subtotal")
+
+	CALL excelHandler.addSubTitle(
+		SFMT("Format mode: %1 (generation %2)   Locale: %3",
+			fgl_spreadsheet_helper.getFormatMode(),
+			fgl_spreadsheet_helper.getFormatGeneration(),
+			NVL(fgl_spreadsheet_helper.getLocale(), "<none>")))
+	CALL excelHandler.addSubTitle(
+		SFMT("DATE [%1]   MONEY(12,2) [%2]",
+			NVL(fgl_spreadsheet_helper.getDateFormat(), cViewerDecides),
+			NVL(fgl_spreadsheet_helper.getMoneyFormat("MONEY(12,2)"), cViewerDecides)))
+	CALL excelHandler.addSubTitle(
+		SFMT("DATETIME YEAR TO SECOND [%1]   DATETIME HOUR TO SECOND [%2]",
+			NVL(fgl_spreadsheet_helper.getDatetimeFormat("DATETIME YEAR TO SECOND"), cViewerDecides),
+			NVL(fgl_spreadsheet_helper.getTimeFormat("DATETIME HOUR TO SECOND"), cViewerDecides)))
+	CALL excelHandler.addSubTitle(
+		SFMT("Group footer label: %1", excelHandler.getGroupFooterLabel()))
+
+	FOR idx = 1 TO 10
+		IF idx MOD 5 == 1 THEN
+			CALL excelHandler.addGroupHeaderRow("5", SFMT("Rows %1 - %2", idx, idx + 4))
+		END IF
+		CALL excelHandler.addDataRow(util.JSONObject.fromFGL(dataList[idx]))
+		IF idx MOD 5 == 0 THEN
+			CALL excelHandler.addGroupFooterRow("5")
+		END IF
+	END FOR
+
+	RETURN excelHandler.createSpreadsheet()
+
+END FUNCTION #createFormatSheet
+
 PRIVATE FUNCTION excelTable() RETURNS ()
 
 	OPEN WINDOW excelTableWindow WITH FORM "fgl_excel_form"
@@ -487,8 +681,10 @@ PRIVATE FUNCTION excelTable() RETURNS ()
 
 		ON ACTION export_to_excel ATTRIBUTES(TEXT="Export to Excel")
 			VAR filename = tableExcelExport("s_table", util.JSONArray.fromFGL(dataList))
-			DISPLAY filename
 			CALL displayFile(filename)
+
+		ON ACTION export_to_excel_locale ATTRIBUTES(TEXT="Export to Excel (locale...)")
+			CALL exportTableWithLocale("s_table", util.JSONArray.fromFGL(dataList))
 
 		AFTER DISPLAY
 			CONTINUE DISPLAY
@@ -540,8 +736,10 @@ PRIVATE FUNCTION xtendExcelTable() RETURNS ()
 
 		ON ACTION export_to_excel ATTRIBUTES(TEXT="Export to Excel")
 			VAR filename = tableExcelExport("s_xtend", util.JSONArray.fromFGL(xtendList))
-			DISPLAY filename
 			CALL displayFile(filename)
+
+		ON ACTION export_to_excel_locale ATTRIBUTES(TEXT="Export to Excel (locale...)")
+			CALL exportTableWithLocale("s_xtend", util.JSONArray.fromFGL(xtendList))
 
 		AFTER DISPLAY
 			CONTINUE DISPLAY
@@ -552,14 +750,25 @@ PRIVATE FUNCTION xtendExcelTable() RETURNS ()
 
 END FUNCTION #xtendExcelTable
 
+#Tells the user the file was written. A DISPLAY without a TO clause goes to
+#stdout, so on a graphical front-end it is never seen.
+PRIVATE FUNCTION confirmFile(excelFilename STRING) RETURNS ()
+
+	MESSAGE SFMT("Excel file created: %1", os.Path.baseName(excelFilename))
+	DISPLAY SFMT("Excel file path: %1", excelFilename)
+
+END FUNCTION #confirmFile
+
 PRIVATE FUNCTION displayFile(excelFilename STRING) RETURNS ()
 
 	CASE interactiveMode
 		WHEN "web"
 			CALL fgl_putfile(excelFilename, os.Path.baseName(excelFilename))
+			CALL confirmFile(excelFilename)
 		WHEN "desktop"
 			VAR clientFilename = os.Path.baseName(excelFilename)
 			CALL fgl_putfile(excelFilename, clientFilename)
+			CALL confirmFile(excelFilename)
 		OTHERWISE
 			DISPLAY SFMT("Excel file created: %1", excelFilename)
 	END CASE

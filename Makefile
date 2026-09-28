@@ -7,6 +7,44 @@
 #                  src/*.per -> bin/*.42f
 
 # ---------------------------------------------------------------------------
+# Host differences
+#
+# Two separate questions, which are easy to confuse:
+#
+#   * The list separator for CLASSPATH and FGLLDPATH follows the PLATFORM,
+#     because it is the Java and Genero runtimes that read those variables:
+#     ";" on Windows, ":" everywhere else.
+#
+#   * The file commands follow the SHELL. GNU make drives cmd.exe on Windows
+#     unless a Unix shell is installed, and cmd.exe has neither "mkdir -p"
+#     nor "cp" and wants backslashes in paths. Under MSYS or Git Bash,
+#     though, the Unix commands work perfectly well on Windows, so testing
+#     the OS here would break those. The probe below tests the shell
+#     instead: cmd.exe echoes back the quotes that a Unix shell strips.
+# ---------------------------------------------------------------------------
+empty  :=
+space  := $(empty) $(empty)
+bslash := $(empty)\$(empty)
+
+ifeq ($(OS),Windows_NT)
+  PATHSEP := ;
+else
+  PATHSEP := :
+endif
+
+ifeq ($(shell echo "probe"),"probe")
+  native  = $(subst /,$(bslash),$1)
+  MKDIR_P = if not exist "$(call native,$1)" mkdir "$(call native,$1)"
+  COPY    = copy /Y "$(call native,$1)" "$(call native,$2)" >nul
+  RM_F    = -del /q $(call native,$1) 2>nul
+else
+  native  = $1
+  MKDIR_P = mkdir -p $1
+  COPY    = cp $1 $2
+  RM_F    = rm -f $1
+endif
+
+# ---------------------------------------------------------------------------
 # Environment (mirrors the 4pw Application/Library environment settings)
 # ---------------------------------------------------------------------------
 # Absolute jar paths (like $(ProjectDir) in the 4pw) so recipes that cd
@@ -14,15 +52,11 @@
 JARDIR   := $(CURDIR)/.fglpkg/jars
 JARS     := $(wildcard $(JARDIR)/*.jar)
 
-empty :=
-space := $(empty) $(empty)
-
 # 4pw: CLASSPATH=<jars>;$(CLASSPATH) — jars first, inherited value appended
-# (Unix ':' separator; the 4pw uses ';' for Studio dirlists)
-export CLASSPATH  := $(subst $(space),:,$(strip $(JARS)))$(if $(CLASSPATH),:$(CLASSPATH))
+export CLASSPATH  := $(subst $(space),$(PATHSEP),$(strip $(JARS)))$(if $(CLASSPATH),$(PATHSEP)$(CLASSPATH))
 # 4pw: FGLLDPATH=$(FGLLDPATH);$(ProjectDir) — project root appended,
 # so IMPORT FGL com.fourjs.poiapi.* resolves
-export FGLLDPATH  := $(if $(FGLLDPATH),$(FGLLDPATH):)$(CURDIR)
+export FGLLDPATH  := $(if $(FGLLDPATH),$(FGLLDPATH)$(PATHSEP))$(CURDIR)
 
 FGLCOMP  := fglcomp -M
 FGLFORM  := fglform -M
@@ -45,7 +79,8 @@ LIBMODS  := fgl_excel \
 LIB42M   := $(addprefix $(PKGDIR)/,$(addsuffix .42m,$(LIBMODS)))
 PKGXML   := $(PKGDIR)/package.xml
 
-FORMS    := fgl_excel_form fgl_excel_form_xtend fgl_excel_menu_table
+FORMS    := fgl_excel_form fgl_excel_form_xtend fgl_excel_menu_table \
+            fgl_excel_locale_picker
 FORMS42F := $(addprefix $(BINDIR)/,$(addsuffix .42f,$(FORMS)))
 
 APP      := fgl_excel_api_test
@@ -84,7 +119,7 @@ $(PKGDIR)/fgl_table_export.42m:          $(PKGDIR)/fgl_spreadsheet_helper.42m \
 
 # XML copy build rule from the 4pw
 $(PKGXML): lib/package.xml | $(PKGDIR)
-	cp $< $@
+	$(call COPY,$<,$@)
 
 # --- application ------------------------------------------------------------
 $(APP42M): src/$(APP).4gl $(LIB42M) | $(BINDIR)
@@ -99,7 +134,7 @@ $(BINDIR)/%.42f: src/%.per | $(BINDIR)
 
 # --- directories --------------------------------------------------------------
 $(PKGDIR) $(BINDIR):
-	mkdir -p $@
+	$(call MKDIR_P,$@)
 
 # --- run (default configuration passes "web" as command line argument) -------
 run: all
@@ -107,5 +142,5 @@ run: all
 
 # --- clean --------------------------------------------------------------------
 clean:
-	rm -f $(LIB42M) $(PKGXML)
-	rm -f $(APP42M) $(APP42R) $(FORMS42F)
+	$(call RM_F,$(LIB42M) $(PKGXML))
+	$(call RM_F,$(APP42M) $(APP42R) $(FORMS42F))

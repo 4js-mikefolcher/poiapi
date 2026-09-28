@@ -25,22 +25,23 @@ Add `poiapi` as a dependency in your project's `fglpkg.json`:
   "version": "1.0.0",
   "dependencies": {
     "fgl": {
-      "poiapi": "6.0.0"
+      "poiapi": "^1.8.0"
     }
   }
 }
 ```
 
-Run `fglpkg install` to download the package and its Java dependencies (Apache POI 5.2.3, Log4j 2.25.3).
+Run `fglpkg install` to download the package and its Java dependencies. The exact
+versions are declared in [fglpkg.json](fglpkg.json) and pinned in `fglpkg-lock.json`;
+[USERGUIDE.md](USERGUIDE.md#understanding-what-fglpkg-installs) lists them.
 
 ### Manual Installation
 
-1. Download the Apache POI libraries from https://poi.apache.org/
-2. Set the `POI_HOME` environment variable to the download location
-3. Add the POI JAR files to your `CLASSPATH`:
-   ```
-   $(CLASSPATH);$(POI_DIR)/poiapi-4js-5.2.3.jar;$(POI_DIR)/log4j-core-2.19.0.jar
-   ```
+1. Download Apache POI and its transitive dependencies from
+   [Maven Central](https://search.maven.org/) — the full list, with versions, is in
+   [USERGUIDE.md](USERGUIDE.md#understanding-what-fglpkg-installs)
+2. Add every one of those JAR files to your `CLASSPATH`
+3. Copy the compiled `.42m` files from `com/fourjs/poiapi/` to a directory on your `FGLLDPATH`
 
 ## Quick Start
 
@@ -133,7 +134,7 @@ See [USERGUIDE.md](USERGUIDE.md) for detailed API documentation, method referenc
 
 ## Credits
 
-The `fgl_excel.4gl` module originated from Reuben's [fgl_apache_poi](https://github.com/FourjsGenero/fgl_apache_poi) repository. This project builds on that foundation with a higher-level API focused on Excel export, updated for Apache POI 5.2.3, and extended with grouping, subtotals, multi-sheet support, and UI table integration.
+The `fgl_excel.4gl` module originated from Reuben's [fgl_apache_poi](https://github.com/FourjsGenero/fgl_apache_poi) repository. This project builds on that foundation with a higher-level API focused on Excel export, updated for Apache POI 5.x, and extended with grouping, subtotals, multi-sheet support, and UI table integration.
 
 ## License
 

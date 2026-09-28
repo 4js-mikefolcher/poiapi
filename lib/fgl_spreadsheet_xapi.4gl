@@ -14,8 +14,14 @@ PUBLIC TYPE TSpreadsheetXtend RECORD
    colInfo DYNAMIC ARRAY OF TColumnInfo,
    dataRows DYNAMIC ARRAY OF TDataRow,
    subTitles DYNAMIC ARRAY OF STRING,
-   multiSheetMode BOOLEAN
+   multiSheetMode BOOLEAN,
+   groupFooterLabel STRING
 END RECORD
+
+#A group footer is a total line, so by default it is labelled as one rather
+#than repeating the group header word for word. %1 is the group's title.
+PUBLIC CONSTANT cDefaultGroupFooterLabel = "Total %1"
+
 
 PRIVATE DEFINE cellStyleDict DICTIONARY OF fgl_excel.cellStyleType
 PRIVATE DEFINE headerStyleDict DICTIONARY OF fgl_excel.cellStyleType
@@ -23,6 +29,12 @@ PRIVATE DEFINE footerStyleDict DICTIONARY OF fgl_excel.cellStyleType
 PRIVATE DEFINE formulaStyleDict DICTIONARY OF fgl_excel.cellStyleType
 
 PRIVATE DEFINE calcRowStack TRowStack
+
+#The format generation the cached cell styles were built under. The caches
+#survive from sheet to sheet of a multi-sheet workbook, so a format setting
+#changed between two sheets has to drop them, or the later sheet silently
+#reuses the formats of the earlier one.
+PRIVATE DEFINE styleGeneration INTEGER = 0
 
 PUBLIC FUNCTION (self TSpreadsheetXtend) init() RETURNS ()
     #Module-wide directive - applies to all functions below; propagates errors to the caller
@@ -36,6 +48,7 @@ PUBLIC FUNCTION (self TSpreadsheetXtend) init() RETURNS ()
     LET self.displayGrandTotals = TRUE
     CALL self.subTitles.clear()
     LET self.multiSheetMode = FALSE
+    LET self.groupFooterLabel = cDefaultGroupFooterLabel
 
 END FUNCTION #init
 
@@ -51,6 +64,7 @@ PUBLIC FUNCTION (self TSpreadsheetXtend) initNewSheet() RETURNS ()
     LET self.cellOffset = 1
     LET self.displayGrandTotals = TRUE
     CALL self.subTitles.clear()
+    LET self.groupFooterLabel = cDefaultGroupFooterLabel
 
     LET self.spreadsheet.workbook = currentWorkbook
 
@@ -113,6 +127,23 @@ PUBLIC FUNCTION (self TSpreadsheetXtend) getGroupColumn() RETURNS (BOOLEAN)
    RETURN self.groupCol
 
 END FUNCTION #getGroupColumn
+
+#Sets how a group footer row is labelled. The template is an SFMT format
+#string whose %1 is the title given to the matching addGroupHeaderRow(), so
+#"Total %1" turns a "Region North" header into a "Total Region North" footer.
+#Pass "%1" to label the footer with the group title alone. The grand total row
+#keeps its own label and is not affected.
+PUBLIC FUNCTION (self TSpreadsheetXtend) setGroupFooterLabel(labelTemplate STRING) RETURNS ()
+
+   LET self.groupFooterLabel = labelTemplate
+
+END FUNCTION #setGroupFooterLabel
+
+PUBLIC FUNCTION (self TSpreadsheetXtend) getGroupFooterLabel() RETURNS (STRING)
+
+   RETURN self.groupFooterLabel
+
+END FUNCTION #getGroupFooterLabel
 
 PUBLIC FUNCTION (self TSpreadsheetXtend) setDisplayGrandTotals(displayGrandTotals BOOLEAN) RETURNS ()
 
@@ -281,13 +312,16 @@ PUBLIC FUNCTION (self TSpreadsheetXtend) createSpreadsheet() RETURNS BOOLEAN
 
         END IF
 
-        #Initialize module variables
-        IF firstTime THEN
+        #Initialize module variables. The styles belong to the workbook, so
+        #they are kept across the sheets of one workbook and dropped only on a
+        #new workbook or when the cell formats have been changed since.
+        IF firstTime OR styleGeneration != getFormatGeneration() THEN
             CALL cellStyleDict.clear()
             CALL headerStyleDict.clear()
             CALL footerStyleDict.clear()
             CALL formulaStyleDict.clear()
         END IF
+        LET styleGeneration = getFormatGeneration()
         CALL calcRowStack.init()
 
         #Now loop through the data
@@ -445,8 +479,17 @@ PUBLIC FUNCTION (self TSpreadsheetXtend) createGroupFooterRow(excelRow fgl_excel
    DEFINE offset INTEGER = 0
    DEFINE footerTitle STRING
 
+   #The outermost level holds the grand total, which carries its own label
+   VAR isGrandTotal = (calcRowStack.currentLevel() == 1)
+
    CALL calcRowStack.popGroup()
       RETURNING footerTitle, groupRows
+
+   IF NOT isGrandTotal
+      AND footerTitle IS NOT NULL
+      AND self.groupFooterLabel IS NOT NULL THEN
+      LET footerTitle = SFMT(self.groupFooterLabel, footerTitle)
+   END IF
 
    IF self.groupCol THEN
       LET excelCell = fgl_excel.row_createcell(excelRow, 0)

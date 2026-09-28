@@ -100,7 +100,7 @@ Or by manually editing your project's `fglpkg.json` to include the dependency:
   "version": "1.0.0",
   "dependencies": {
     "fgl": {
-      "poiapi": "^1.2.0"
+      "poiapi": "^1.8.0"
     }
   }
 }
@@ -112,7 +112,7 @@ Then run:
 fglpkg install
 ```
 
-The package manager resolves and downloads both the compiled BDL modules and all required Java dependencies (Apache POI 5.3.0 and its transitive dependencies) automatically. The `fglpkg.lock` file is created alongside `fglpkg.json` to pin exact versions for reproducible installs across machines.
+The package manager resolves and downloads both the compiled BDL modules and all required Java dependencies (Apache POI 5.5.1 and its transitive dependencies) automatically. The `fglpkg-lock.json` file is created alongside `fglpkg.json` to pin exact versions for reproducible installs across machines.
 
 #### Step 5: Verify the installation
 
@@ -130,25 +130,30 @@ The `poiapi` package declares its Java dependencies in its own `fglpkg.json`. Wh
 
 | Library | Version | Purpose |
 |---------|---------|---------|
-| poi | 5.3.0 | Base POI library |
-| poi-ooxml | 5.3.0 | OOXML support for .xlsx format |
-| poi-ooxml-lite | 5.3.0 | Lightweight OOXML schemas |
-| xmlbeans | 5.2.2 | XML binding layer |
-| commons-compress | 1.27.1 | ZIP/package handling |
+| poi | 5.5.1 | Base POI library |
+| poi-ooxml | 5.5.1 | OOXML support for .xlsx format |
+| poi-ooxml-lite | 5.5.1 | Lightweight OOXML schemas |
+| xmlbeans | 5.3.0 | XML binding layer |
+| SparseBitSet | 1.3 | Sparse bit set used by POI |
+| commons-compress | 1.28.0 | ZIP/package handling |
 | commons-collections4 | 4.5.0 | Utility collections |
 | commons-math3 | 3.6.1 | Math utilities |
-| log4j-api | 2.17.1 | Logging facade |
-| commons-io | 2.18.0 | I/O utilities |
+| log4j-api | 2.26.1 | Logging facade |
+| commons-io | 2.21.0 | I/O utilities |
 | curvesapi | 1.08 | Curve/spline math |
-| commons-codec | 1.17.2 | Encoding utilities |
+| commons-codec | 1.20.0 | Encoding utilities |
 
 You do not need to download or manage any of these manually.
+
+> The versions above are those pinned by poiapi 1.8.0. `fglpkg.json` in this
+> repository is the authoritative list — check it there if this table and the
+> package disagree.
 
 ### Manual Installation
 
 If you are not using `fglpkg`, you can install the dependencies manually:
 
-1. Download the Apache POI 5.3.0 libraries and all transitive dependencies listed above from [Maven Central](https://search.maven.org/) or the [Apache POI website](https://poi.apache.org/)
+1. Download the Apache POI 5.5.1 libraries and all transitive dependencies listed above from [Maven Central](https://search.maven.org/) or the [Apache POI website](https://poi.apache.org/)
 2. Add all JAR files to your `CLASSPATH` environment variable
 3. Copy the compiled `.42m` files from `com/fourjs/poiapi/` to a directory on your `FGLLDPATH`
 
@@ -160,14 +165,180 @@ The package automatically applies Excel formatting based on Genero data types:
 
 | Genero Type | Excel Format |
 |-------------|--------------|
-| `MONEY` | Currency (e.g., `$1,234.56`) |
-| `DECIMAL(p,s)` | Numeric with appropriate precision (e.g., `#,##0.0000`) |
+| `MONEY(p,s)` | Currency, symbol from `DBFORMAT`/`DBMONEY`, else the machine's locale |
+| `DECIMAL(p,s)` | Numeric with the precision and scale of the column (e.g., `#,##0.0000`) |
+| `DECIMAL`, `DECIMAL(p)` | Numeric with a floating decimal part (`#,##0.######`) |
 | `INTEGER`, `SMALLINT` | Integer |
 | `FLOAT`, `SMALLFLOAT` | Decimal |
-| `DATE` | Date (e.g., `mm/dd/yyyy`) |
-| `DATETIME YEAR TO SECOND` | Date and time (e.g., `mm/dd/yyyy hh:mm:ss AM/PM`) |
-| `DATETIME HOUR TO SECOND` | Time only (e.g., `hh:mm:ss AM/PM`) |
+| `DATE` | Date in `DBDATE` order, else the machine's locale (e.g., `dd"/"mm"/"yyyy`) |
+| `DATETIME YEAR TO ...` | The same date format, plus a 24-hour time |
+| `DATETIME HOUR TO ...` | Time only, 24-hour (e.g., `hh:mm:ss`) |
 | `STRING`, `VARCHAR`, `CHAR` | Plain text |
+
+### Date, time and currency formats
+
+Dates, times and monetary values are formatted using the settings of the
+machine the **Genero application** runs on, so an exported column reads the way
+the same column reads on screen:
+
+| Setting | Controls |
+|---------|----------|
+| `DBDATE` | The order of day, month and year, and the separator between them |
+| `DBFORMAT` | The currency symbol and whether it leads or trails the value |
+| `DBMONEY` | The currency symbol, when `DBFORMAT` is not set |
+
+These are usually left unset, and Genero then formats to United States
+conventions on any machine — it ignores `LC_TIME`, `LC_NUMERIC` and
+`LC_MONETARY`. Exporting a US date from a machine that is plainly not in the US
+is rarely what anyone wants, so the package looks further:
+
+1. An explicit format code, from the override functions below
+2. `DBDATE`, `DBFORMAT` and `DBMONEY`, whenever they are set
+3. The locale of the machine the program runs on — `LC_ALL`, `LC_MONETARY`,
+   `LC_TIME` and `LANG`, and then the JVM's own default locale
+4. Genero's United States default, if nothing above says anything
+
+Setting `DBDATE` and `DBMONEY` is still worth doing, and not only for the
+export: they are what the *application* formats with, so setting them is what
+makes a form on screen and the spreadsheet beside it agree.
+
+Each format is written into the workbook as an explicit Excel format code, so
+every machine that opens the file sees the same thing.
+
+> **Why this matters.** Excel resolves a *built-in* format id — `14` for dates,
+> `8` for currency — against the regional settings of the machine **viewing**
+> the file. A workbook written with built-in ids therefore shows a different
+> date order, and a different currency symbol, to each person who opens it, and
+> neither follows the application's own `DBDATE` or `DBMONEY`. The package
+> writes explicit format codes to avoid this.
+
+Genero has no environment setting for the time of day, so times use a 24-hour
+clock, which cannot be misread the way a 12-hour clock without a locale can.
+
+`DBDATE` settings that Excel cannot express fall back to an ISO date
+(`yyyy-mm-dd`): the `C1` (Ming Guo) modifier, and three-digit years, which are
+widened to four.
+
+### Overriding the formats
+
+`fgl_spreadsheet_helper` chooses the formats. Call these **before** building a
+spreadsheet; they apply to all three APIs.
+
+```4gl
+IMPORT FGL com.fourjs.poiapi.fgl_spreadsheet_helper
+```
+
+**Format modes** — pass one to `setFormatMode()`:
+
+| Constant | Behaviour |
+|----------|-----------|
+| `cFormatModeLocale` | **Default.** Formats follow `DBDATE`, `DBFORMAT` and `DBMONEY`. |
+| `cFormatModeViewer` | No format codes are written; the regional settings of the machine viewing the file decide. This was the behaviour of `DATE` and `MONEY` columns in earlier releases. |
+| `cFormatModeISO` | ISO 8601 dates, 24-hour times, and numbers with no currency symbol. |
+
+```4gl
+-- Hand the formatting back to whoever opens the file
+CALL fgl_spreadsheet_helper.setFormatMode(fgl_spreadsheet_helper.cFormatModeViewer)
+
+-- Or pin everything to ISO, for a file another system will read
+CALL fgl_spreadsheet_helper.setFormatMode(fgl_spreadsheet_helper.cFormatModeISO)
+```
+
+**Choosing the locale** — `setLocale()` drives step 3 above directly. It takes a
+language tag, and `"en-GB"`, `"de_DE"` and `"en_IE.UTF-8"` are all understood:
+
+```4gl
+-- Export in a locale other than the server's
+CALL fgl_spreadsheet_helper.setLocale("de-DE")   -- dd"."mm"."yyyy and a leading €
+
+-- Back to the locale of the machine
+CALL fgl_spreadsheet_helper.setLocale(NULL)
+```
+
+`getAvailableLocales()` returns every locale the runtime can format for, sorted
+by the name it shows under, ready to put in front of the user. Locales naming
+only a language are left out — they imply no date order and no currency:
+
+| Member | Holds |
+|--------|-------|
+| `localeTag` | `"en-GB"` |
+| `displayName` | `"English (United Kingdom)"` |
+| `dateFormat` | the Excel date code that locale gives, `dd"/"mm"/"yyyy` |
+| `currencySymbol` | `£` |
+
+The four members are in the order a picker form's `SCREEN RECORD` binds them.
+The list is built once and cached, since it cannot change while the program runs.
+`src/fgl_excel_api_test.4gl` has a worked picker — a modal `DISPLAY ARRAY` over
+this list, opening on the locale already in force — wired to an
+**Export to Excel (locale...)** action on each of the table export screens.
+
+`getLocale()` returns the tag actually in force, resolved. This is also the
+dependable way to **test** a locale: a JVM does not always follow `LANG` or
+`LC_ALL` — on macOS it commonly reports `en_US` whatever they are set to — so
+naming the locale is more reliable than changing the machine.
+
+> The currency symbol is subject to the application locale, exactly as the one
+> in `DBMONEY` is: a symbol such as `£` or `€` needs a character set that can
+> represent it, so run under a UTF-8 locale. Under an ASCII locale the symbol
+> is written as `?`.
+
+**Explicit format codes** — these override the mode for one type of column. Pass
+`NULL` to go back to the mode's own format.
+
+| Function | Overrides |
+|----------|-----------|
+| `setDateFormat(code)` | `DATE` columns |
+| `setDatetimeFormat(code)` | `DATETIME YEAR TO ...` columns |
+| `setTimeFormat(code)` | `DATETIME HOUR TO ...` columns |
+| `setMoneyFormat(code)` | `MONEY` columns, symbol and decimal places both |
+| `setCurrencySymbol(symbol)` | The currency symbol only, keeping the column's decimal places |
+| `setLocale(tag)` | The locale the date and currency fallbacks read; `NULL` for the machine's |
+| `clearFormatOverrides()` | Drops every override above, `setLocale()` included |
+
+```4gl
+-- A fixed date format, whatever DBDATE says
+CALL fgl_spreadsheet_helper.setDateFormat("yyyy-mm-dd")
+
+-- Keep the derived shape, change only the symbol
+CALL fgl_spreadsheet_helper.setCurrencySymbol("£")
+
+-- Take full control of the money format
+CALL fgl_spreadsheet_helper.setMoneyFormat("[$£-809]#,##0.00;[Red]-[$£-809]#,##0.00")
+```
+
+The codes are Excel number format codes, written into the workbook as given.
+
+> **Note on separators.** A `.` and a `,` inside a number format code are
+> **placeholders, not literals** — `#,##0.00` means "grouped, two decimals",
+> and Excel fills in the actual characters from the regional settings of the
+> machine viewing the file. A German viewer sees `1.234,56` from that very
+> code. So a format code is never rewritten per country: `#.##0,00` is not the
+> German spelling of it, it is wrong. Java's own currency patterns work the
+> same way, which is why `de-DE` reports `#,##0.00 ¤` while printing
+> `1.234,56 €`.
+>
+> What this means in practice: the decimal and thousands separators follow the
+> viewer even in `cFormatModeLocale`. The currency symbol, **its position and
+> spacing**, the number of decimal places and the whole date format do not —
+> those are pinned. To pin the separators too, give `setMoneyFormat()` a code
+> carrying an explicit locale id, as in the `[$£-809]` example above.
+>
+> Note also that separators follow the *country*, not the currency. The euro is
+> written `1.234,56 €` in Germany, `1 234,56 €` in France and `€1,234.56` in
+> Ireland — the same currency, three conventions.
+
+**Reading the current settings:**
+
+| Function | Returns |
+|----------|---------|
+| `getFormatMode()` | The active mode |
+| `getDateFormat()` | The code that `DATE` columns will use, `NULL` in viewer mode |
+| `getDatetimeFormat(type)` | The code for a `DATETIME YEAR TO ...` type |
+| `getTimeFormat(type)` | The code for a `DATETIME HOUR TO ...` type |
+| `getMoneyFormat(type)` | The code for a `MONEY` type |
+| `getLocale()` | The language tag in force for the locale fallback, resolved |
+| `getAvailableLocales()` | Every locale the runtime can format for, as `TLocaleInfo` rows sorted by display name |
+| `getFormatGeneration()` | A counter bumped on every format change, for callers caching cell styles across spreadsheets |
 
 ---
 
@@ -467,11 +638,13 @@ DISPLAY SFMT("File created: %1", excelHandler.getFilename())
 | `setTitle(title STRING)` | Set the sheet tab name |
 | `setGroupColumn(groupCol BOOLEAN)` | Show/hide the "Report Group" column (default: `FALSE`) |
 | `setDisplayGrandTotals(display BOOLEAN)` | Show/hide grand total row at bottom (default: `TRUE`) |
+| `setGroupFooterLabel(template STRING)` | How a group footer is labelled; `%1` is the group title (default: `"Total %1"`) |
 | `setMultiSheetMode(mode BOOLEAN)` | Enable multi-sheet workbook mode (default: `FALSE`) |
 | `addSubTitle(title STRING)` | Add a merged subtitle row above the column headers |
 | `addDataRow(rowData util.JSONObject)` | Add a data row |
 | `addGroupHeaderRow(group_id STRING, group_title STRING)` | Push a group header onto the stack |
 | `addGroupFooterRow(group_id STRING)` | Pop the innermost group and generate subtotal formulas |
+| `getGroupFooterLabel() RETURNS STRING` | The current group footer label template |
 | `createSpreadsheet() RETURNS BOOLEAN` | Render the sheet (and write to file unless in multi-sheet mode) |
 | `createFile()` | Write the workbook to disk (multi-sheet mode only) |
 | `getFilename() RETURNS STRING` | Get the output file path |

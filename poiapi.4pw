@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<Project defaultApplication="295160032" gstVersion="60004" version="3.7">
+<Project defaultApplication="295160032" gstVersion="60003" version="3.7">
   <Settings>
     <DynamicProperties version="4">
       <DynamicProperty editorInfo="alwaysUpdate:true" initialValue="false" isDefaultInherited="false" isHidden="false" label="Firebase-analytics" name="firebase" readOnly="false" type="BOOLEAN"/>
@@ -84,6 +84,7 @@
       <File filePath="src/fgl_excel_api_test.4gl"/>
       <File filePath="src/fgl_excel_form.per"/>
       <File filePath="src/fgl_excel_form_xtend.per"/>
+      <File filePath="src/fgl_excel_locale_picker.per"/>
       <File filePath="src/fgl_excel_menu_table.per"/>
     </Application>
   </Group>
