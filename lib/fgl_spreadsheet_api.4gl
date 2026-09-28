@@ -132,64 +132,42 @@ PUBLIC FUNCTION (self TSpreadsheet) createSpreadsheet(jsonArray util.JSONArray) 
 					#create the excel row
 					LET excelCell = fgl_excel.row_createcell(excelRow, idx2-1)
 
-					#get the cached style
+					#Get the cached style, building it from the column type on the
+					#first cell of that type. The formats come from the shared
+					#helper, so this API and TSpreadsheetXtend format alike.
 					IF cellStyleDict.contains(cellField.fieldType) THEN
 						LET cellStyle = cellStyleDict[cellField.fieldType]
 					ELSE
-						LET cellStyle = NULL
+						LET cellStyle = getCellStyleForDataType(self.workbook, cellField.fieldType)
+						LET cellStyleDict[cellField.fieldType] = cellStyle
 					END IF
 
 					#set the cell style and value
 					CASE
 						WHEN cellField.fieldType MATCHES "DEC*"
 							#Handle Decimal Field Formatting and value
-							IF cellStyle IS NULL THEN
-								#get the decimal string format and build a cell style from it
-								LET cellStyle = fgl_excel.cell_style_builtin_create(self.workbook, fgl_excel.cDecimalFormat)
-								LET cellStyleDict[cellField.fieldType] = cellStyle
-							END IF
 							#set the field data and the style of the cell
 							CALL fgl_excel.cell_number_set(excelCell, jsonObj.get(cellField.fieldName))
 							CALL fgl_excel.cell_style_set(excelCell, cellStyle)
 
 						WHEN cellField.fieldType MATCHES "*INT*"
 							#Handle Integer Field Formatting and value
-							IF cellStyle IS NULL THEN
-								#set integer format
-								LET cellStyle = fgl_excel.cell_style_builtin_create(self.workbook, fgl_excel.cIntegerFormat)
-								LET cellStyleDict[cellField.fieldType] = cellStyle
-							END IF
 							CALL fgl_excel.cell_number_set(excelCell, jsonObj.get(cellField.fieldName))
 							CALL fgl_excel.cell_style_set(excelCell, cellStyle)
 
 						WHEN cellField.fieldType MATCHES "*MONEY*"
 							#Handle Money Field Formatting and value
-							IF cellStyle IS NULL THEN
-								#set money format and value
-								LET cellStyle = fgl_excel.cell_style_builtin_create(self.workbook, fgl_excel.cMoneyFormat)
-								LET cellStyleDict[cellField.fieldType] = cellStyle
-							END IF
 							CALL fgl_excel.cell_number_set(excelCell, jsonObj.get(cellField.fieldName))
 							CALL fgl_excel.cell_style_set(excelCell, cellStyle)
 
 						WHEN cellField.fieldType MATCHES "*FLOAT*"
 							#Handle floating point Field Formatting and value
-							IF cellStyle IS NULL THEN
-								#get the float string format and build a cell style from it
-								LET cellStyle = fgl_excel.cell_style_builtin_create(self.workbook, fgl_excel.cDecimalFormat)
-								LET cellStyleDict[cellField.fieldType] = cellStyle
-							END IF
 							#set the field data and the style of the cell
 							CALL fgl_excel.cell_number_set(excelCell, jsonObj.get(cellField.fieldName))
 							CALL fgl_excel.cell_style_set(excelCell, cellStyle)
 
 						WHEN cellField.fieldType == "DATE"
 							#Handle Date Field Formatting and value
-							IF cellStyle IS NULL THEN
-								#get the date string format and build a cell style from it
-								LET cellStyle = fgl_excel.cell_style_builtin_create(self.workbook, fgl_excel.cDateFormat)
-								LET cellStyleDict[cellField.fieldType] = cellStyle
-							END IF
 							#set the field data and the style of the cell
 							VAR dateValue = dateConverter(jsonObj.get(cellField.fieldName))
 							VAR dateString = ""
@@ -201,11 +179,6 @@ PUBLIC FUNCTION (self TSpreadsheet) createSpreadsheet(jsonArray util.JSONArray) 
 
 						WHEN cellField.fieldType MATCHES "DATETIME YEAR*"
 							#Handle Datetime Field Formatting and value
-							IF cellStyle IS NULL THEN
-								#get the datetime string format and build a cell style from it
-								LET cellStyle = fgl_excel.cell_style_builtin_create(self.workbook, fgl_excel.cDatetimeFormat)
-								LET cellStyleDict[cellField.fieldType] = cellStyle
-							END IF
 							#set the field data and the style of the cell
                             LET dtYearToSecond = datetimeConverter(jsonObj.get(cellField.fieldName))
 							CALL fgl_excel.cell_datetime_set(excelCell, dtYearToSecond)
@@ -213,11 +186,6 @@ PUBLIC FUNCTION (self TSpreadsheet) createSpreadsheet(jsonArray util.JSONArray) 
 
 						WHEN cellField.fieldType MATCHES "DATETIME HOUR*"
 							#Handle Datetime Field Formatting and value
-							IF cellStyle IS NULL THEN
-								#get the datetime string format and build a cell style from it
-								LET cellStyle = fgl_excel.cell_style_builtin_create(self.workbook, fgl_excel.cTimeFormat)
-								LET cellStyleDict[cellField.fieldType] = cellStyle
-							END IF
 							#set the field data and the style of the cell
                             LET dtHourToSecond = timeConverter(jsonObj.get(cellField.fieldName))
 							CALL fgl_excel.cell_time_set(excelCell, dtHourToSecond)

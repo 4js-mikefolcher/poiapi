@@ -160,14 +160,113 @@ The package automatically applies Excel formatting based on Genero data types:
 
 | Genero Type | Excel Format |
 |-------------|--------------|
-| `MONEY` | Currency (e.g., `$1,234.56`) |
-| `DECIMAL(p,s)` | Numeric with appropriate precision (e.g., `#,##0.0000`) |
+| `MONEY(p,s)` | Currency, symbol from `DBFORMAT`/`DBMONEY` (e.g., `"EUR"#,##0.00`) |
+| `DECIMAL(p,s)` | Numeric with the precision and scale of the column (e.g., `#,##0.0000`) |
+| `DECIMAL`, `DECIMAL(p)` | Numeric with a floating decimal part (`#,##0.######`) |
 | `INTEGER`, `SMALLINT` | Integer |
 | `FLOAT`, `SMALLFLOAT` | Decimal |
-| `DATE` | Date (e.g., `mm/dd/yyyy`) |
-| `DATETIME YEAR TO SECOND` | Date and time (e.g., `mm/dd/yyyy hh:mm:ss AM/PM`) |
-| `DATETIME HOUR TO SECOND` | Time only (e.g., `hh:mm:ss AM/PM`) |
+| `DATE` | Date in `DBDATE` order (e.g., `dd"/"mm"/"yyyy`) |
+| `DATETIME YEAR TO ...` | The same date format, plus a 24-hour time |
+| `DATETIME HOUR TO ...` | Time only, 24-hour (e.g., `hh:mm:ss`) |
 | `STRING`, `VARCHAR`, `CHAR` | Plain text |
+
+### Date, time and currency formats
+
+Dates, times and monetary values are formatted using the settings of the
+machine the **Genero application** runs on, so an exported column reads the way
+the same column reads on screen:
+
+| Setting | Controls |
+|---------|----------|
+| `DBDATE` | The order of day, month and year, and the separator between them |
+| `DBFORMAT` | The currency symbol and whether it leads or trails the value |
+| `DBMONEY` | The currency symbol, when `DBFORMAT` is not set |
+
+Each of these is written into the workbook as an explicit Excel format code, so
+every machine that opens the file sees the same thing.
+
+> **Why this matters.** Excel resolves a *built-in* format id — `14` for dates,
+> `8` for currency — against the regional settings of the machine **viewing**
+> the file. A workbook written with built-in ids therefore shows a different
+> date order, and a different currency symbol, to each person who opens it, and
+> neither follows the application's own `DBDATE` or `DBMONEY`. The package
+> writes explicit format codes to avoid this.
+
+Genero has no environment setting for the time of day, so times use a 24-hour
+clock, which cannot be misread the way a 12-hour clock without a locale can.
+
+`DBDATE` settings that Excel cannot express fall back to an ISO date
+(`yyyy-mm-dd`): the `C1` (Ming Guo) modifier, and three-digit years, which are
+widened to four.
+
+### Overriding the formats
+
+`fgl_spreadsheet_helper` chooses the formats. Call these **before** building a
+spreadsheet; they apply to all three APIs.
+
+```4gl
+IMPORT FGL com.fourjs.poiapi.fgl_spreadsheet_helper
+```
+
+**Format modes** — pass one to `setFormatMode()`:
+
+| Constant | Behaviour |
+|----------|-----------|
+| `cFormatModeLocale` | **Default.** Formats follow `DBDATE`, `DBFORMAT` and `DBMONEY`. |
+| `cFormatModeViewer` | No format codes are written; the regional settings of the machine viewing the file decide. This was the behaviour of `DATE` and `MONEY` columns in earlier releases. |
+| `cFormatModeISO` | ISO 8601 dates, 24-hour times, and numbers with no currency symbol. |
+
+```4gl
+-- Hand the formatting back to whoever opens the file
+CALL fgl_spreadsheet_helper.setFormatMode(fgl_spreadsheet_helper.cFormatModeViewer)
+
+-- Or pin everything to ISO, for a file another system will read
+CALL fgl_spreadsheet_helper.setFormatMode(fgl_spreadsheet_helper.cFormatModeISO)
+```
+
+**Explicit format codes** — these override the mode for one type of column. Pass
+`NULL` to go back to the mode's own format.
+
+| Function | Overrides |
+|----------|-----------|
+| `setDateFormat(code)` | `DATE` columns |
+| `setDatetimeFormat(code)` | `DATETIME YEAR TO ...` columns |
+| `setTimeFormat(code)` | `DATETIME HOUR TO ...` columns |
+| `setMoneyFormat(code)` | `MONEY` columns, symbol and decimal places both |
+| `setCurrencySymbol(symbol)` | The currency symbol only, keeping the column's decimal places |
+| `clearFormatOverrides()` | Drops every override above |
+
+```4gl
+-- A fixed date format, whatever DBDATE says
+CALL fgl_spreadsheet_helper.setDateFormat("yyyy-mm-dd")
+
+-- Keep the derived shape, change only the symbol
+CALL fgl_spreadsheet_helper.setCurrencySymbol("£")
+
+-- Take full control of the money format
+CALL fgl_spreadsheet_helper.setMoneyFormat("[$£-809]#,##0.00;[Red]-[$£-809]#,##0.00")
+```
+
+The codes are Excel number format codes, written into the workbook as given.
+
+> **Note on separators.** Excel treats `.` and `,` inside a number format code
+> as placeholders and fills them from the regional settings of the machine
+> viewing the file. The decimal and thousands separators of a number therefore
+> follow the viewer even in `cFormatModeLocale`; the currency symbol, the
+> number of decimal places, and the whole of the date format do not. To pin the
+> separators as well, give `setMoneyFormat()` a code carrying an explicit
+> locale id, as in the `[$£-809]` example above.
+
+**Reading the current settings:**
+
+| Function | Returns |
+|----------|---------|
+| `getFormatMode()` | The active mode |
+| `getDateFormat()` | The code that `DATE` columns will use, `NULL` in viewer mode |
+| `getDatetimeFormat(type)` | The code for a `DATETIME YEAR TO ...` type |
+| `getTimeFormat(type)` | The code for a `DATETIME HOUR TO ...` type |
+| `getMoneyFormat(type)` | The code for a `MONEY` type |
+| `getFormatGeneration()` | A counter bumped on every format change, for callers caching cell styles across spreadsheets |
 
 ---
 
