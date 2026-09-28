@@ -30,6 +30,12 @@ PRIVATE DEFINE formulaStyleDict DICTIONARY OF fgl_excel.cellStyleType
 
 PRIVATE DEFINE calcRowStack TRowStack
 
+#The format generation the cached cell styles were built under. The caches
+#survive from sheet to sheet of a multi-sheet workbook, so a format setting
+#changed between two sheets has to drop them, or the later sheet silently
+#reuses the formats of the earlier one.
+PRIVATE DEFINE styleGeneration INTEGER = 0
+
 PUBLIC FUNCTION (self TSpreadsheetXtend) init() RETURNS ()
     #Module-wide directive - applies to all functions below; propagates errors to the caller
     WHENEVER ERROR RAISE
@@ -306,13 +312,16 @@ PUBLIC FUNCTION (self TSpreadsheetXtend) createSpreadsheet() RETURNS BOOLEAN
 
         END IF
 
-        #Initialize module variables
-        IF firstTime THEN
+        #Initialize module variables. The styles belong to the workbook, so
+        #they are kept across the sheets of one workbook and dropped only on a
+        #new workbook or when the cell formats have been changed since.
+        IF firstTime OR styleGeneration != getFormatGeneration() THEN
             CALL cellStyleDict.clear()
             CALL headerStyleDict.clear()
             CALL footerStyleDict.clear()
             CALL formulaStyleDict.clear()
         END IF
+        LET styleGeneration = getFormatGeneration()
         CALL calcRowStack.init()
 
         #Now loop through the data

@@ -125,6 +125,11 @@ PRIVATE FUNCTION displayMenuTable() RETURNS ()
 	LET menuList[idx].menu_function = "xtendExcelTable()"
 	LET menuList[idx].menu_descript = "Function to test the Export to Excel UI Table API with Aggregate Totals"
 
+	LET idx = 6
+	LET menuList[idx].menu_id = idx
+	LET menuList[idx].menu_function = "excelFormatModesExample()"
+	LET menuList[idx].menu_descript = "Function to test the date, time and currency cell format controls"
+
 	OPEN WINDOW mainWindow WITH FORM "fgl_excel_menu_table"
 
 	DISPLAY ARRAY menuList TO s_menu.*
@@ -150,6 +155,8 @@ PRIVATE FUNCTION displayMenuTable() RETURNS ()
 					CALL excelTable()
 				WHEN 5
 					CALL xtendExcelTable()
+				WHEN 6
+					CALL excelFormatModesExample()
 			END CASE
 			LET int_flag = FALSE
 			CONTINUE DISPLAY
@@ -209,6 +216,8 @@ PRIVATE FUNCTION excelXAPIExample() RETURNS ()
 	CALL excelHandler.setRecordDefinition(base.TypeInfo.create(dataRec))
 	CALL excelHandler.setTitle("Test Spreadsheet XAPI")
     CALL excelHandler.setGroupColumn(TRUE)
+    #The default: a group footer reads "Total <group title>"
+    CALL excelHandler.setGroupFooterLabel(fgl_spreadsheet_xapi.cDefaultGroupFooterLabel)
     CALL excelHandler.addSubTitle("Test Spreadsheet XAPI")
     CALL excelHandler.addSubTitle("This is a test of the sub title stuff")
     #CALL excelHandler.setDisplayGrandTotals(FALSE)
@@ -384,7 +393,8 @@ PRIVATE FUNCTION columnInfoArray() RETURNS (DYNAMIC ARRAY OF TColumnInfo)
 		(colTitle: "Varchar", colCalc: fgl_spreadsheet_helper.cExcelNone),
 		(colTitle: "Float", colCalc: fgl_spreadsheet_helper.cExcelSum),
 		(colTitle: "Small Float", colCalc: fgl_spreadsheet_helper.cExcelSum),
-		(colTitle: "Boolean", colCalc: fgl_spreadsheet_helper.cExcelNone)
+		(colTitle: "Boolean", colCalc: fgl_spreadsheet_helper.cExcelNone),
+		(colTitle: "Combo", colCalc: fgl_spreadsheet_helper.cExcelNone)
 	]
 
    RETURN colInfoArray
@@ -472,6 +482,97 @@ PRIVATE FUNCTION getLastName(idx INTEGER) RETURNS (STRING)
     RETURN lastNameList[nameIdx]
 
 END FUNCTION
+
+#Demonstrates the cell format controls of fgl_spreadsheet_helper: one sheet
+#per format mode, then sheets using explicit format codes. The formats change
+#between the sheets of a single workbook, so this also covers the cached cell
+#styles being dropped when a format setting changes.
+PRIVATE FUNCTION excelFormatModesExample() RETURNS ()
+	DEFINE excelHandler fgl_spreadsheet_xapi.TSpreadsheetXtend
+
+	CALL excelHandler.init()
+	CALL excelHandler.setMultisheetMode(TRUE)
+
+	#The default: dates and money follow DBDATE, DBFORMAT and DBMONEY
+	CALL fgl_spreadsheet_helper.clearFormatOverrides()
+	CALL fgl_spreadsheet_helper.setFormatMode(fgl_spreadsheet_helper.cFormatModeLocale)
+	IF NOT createFormatSheet(excelHandler, "Locale") THEN RETURN END IF
+
+	#ISO 8601 dates, 24 hour times, no currency symbol
+	CALL fgl_spreadsheet_helper.setFormatMode(fgl_spreadsheet_helper.cFormatModeISO)
+	IF NOT createFormatSheet(excelHandler, "ISO") THEN RETURN END IF
+
+	#No format codes written at all: the machine opening the file decides
+	CALL fgl_spreadsheet_helper.setFormatMode(fgl_spreadsheet_helper.cFormatModeViewer)
+	IF NOT createFormatSheet(excelHandler, "Viewer") THEN RETURN END IF
+
+	#Explicit format codes, which win over whatever the mode would give
+	CALL fgl_spreadsheet_helper.setFormatMode(fgl_spreadsheet_helper.cFormatModeLocale)
+	CALL fgl_spreadsheet_helper.setDateFormat("dd-mmm-yyyy")
+	CALL fgl_spreadsheet_helper.setDatetimeFormat("dd-mmm-yyyy hh:mm")
+	CALL fgl_spreadsheet_helper.setTimeFormat("hh:mm AM/PM")
+	CALL fgl_spreadsheet_helper.setCurrencySymbol("GBP ")
+	IF NOT createFormatSheet(excelHandler, "Overrides") THEN RETURN END IF
+
+	#A money code carrying its own symbol, decimals and locale. The locale id
+	#pins the thousands and decimal separators, which a plain code leaves to
+	#the regional settings of the machine viewing the file.
+	CALL fgl_spreadsheet_helper.setMoneyFormat("[$GBP-809]#,##0.00;[Red]([$GBP-809]#,##0.00)")
+	IF NOT createFormatSheet(excelHandler, "Money code") THEN RETURN END IF
+
+	CALL excelHandler.createFile()
+
+	#Put the helper back as it was found. These settings are module-wide, so
+	#they would otherwise follow every later export off this menu.
+	CALL fgl_spreadsheet_helper.clearFormatOverrides()
+	CALL fgl_spreadsheet_helper.setFormatMode(fgl_spreadsheet_helper.cFormatModeLocale)
+
+	CALL displayFile(excelHandler.getFilename())
+
+END FUNCTION #excelFormatModesExample
+
+#One sheet of the format example. The subtitles report what the helper
+#resolved the current settings to, so each sheet says how it was formatted.
+PRIVATE FUNCTION createFormatSheet(excelHandler fgl_spreadsheet_xapi.TSpreadsheetXtend INOUT,
+                                   sheetName STRING) RETURNS BOOLEAN
+	DEFINE idx INTEGER
+	CONSTANT cViewerDecides = "<none - the viewer decides>"
+
+	CALL excelHandler.initNewSheet()
+	CALL excelHandler.setColumnInfo(columnInfoArray())
+	CALL excelHandler.setRecordDefinition(base.TypeInfo.create(dataRec))
+	CALL excelHandler.setTitle(sheetName)
+	CALL excelHandler.setGroupColumn(TRUE)
+	CALL excelHandler.setGroupFooterLabel("%1 subtotal")
+
+	CALL excelHandler.addSubTitle(
+		SFMT("Format mode: %1 (generation %2)",
+			fgl_spreadsheet_helper.getFormatMode(),
+			fgl_spreadsheet_helper.getFormatGeneration()))
+	CALL excelHandler.addSubTitle(
+		SFMT("DATE [%1]   MONEY(12,2) [%2]",
+			NVL(fgl_spreadsheet_helper.getDateFormat(), cViewerDecides),
+			NVL(fgl_spreadsheet_helper.getMoneyFormat("MONEY(12,2)"), cViewerDecides)))
+	CALL excelHandler.addSubTitle(
+		SFMT("DATETIME YEAR TO SECOND [%1]   DATETIME HOUR TO SECOND [%2]",
+			NVL(fgl_spreadsheet_helper.getDatetimeFormat("DATETIME YEAR TO SECOND"), cViewerDecides),
+			NVL(fgl_spreadsheet_helper.getTimeFormat("DATETIME HOUR TO SECOND"), cViewerDecides)))
+	CALL excelHandler.addSubTitle(
+		SFMT("Group footer label: %1", excelHandler.getGroupFooterLabel()))
+
+	FOR idx = 1 TO 10
+		IF idx MOD 5 == 1 THEN
+			CALL excelHandler.addGroupHeaderRow("5", SFMT("Rows %1 - %2", idx, idx + 4))
+		END IF
+		CALL excelHandler.addDataRow(util.JSONObject.fromFGL(dataList[idx]))
+		IF idx MOD 5 == 0 THEN
+			CALL excelHandler.addGroupFooterRow("5")
+		END IF
+	END FOR
+
+	RETURN excelHandler.createSpreadsheet()
+
+END FUNCTION #createFormatSheet
 
 PRIVATE FUNCTION excelTable() RETURNS ()
 
