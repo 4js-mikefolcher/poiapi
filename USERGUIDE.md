@@ -100,7 +100,7 @@ Or by manually editing your project's `fglpkg.json` to include the dependency:
   "version": "1.0.0",
   "dependencies": {
     "fgl": {
-      "poiapi": "^1.2.0"
+      "poiapi": "^1.8.0"
     }
   }
 }
@@ -112,7 +112,7 @@ Then run:
 fglpkg install
 ```
 
-The package manager resolves and downloads both the compiled BDL modules and all required Java dependencies (Apache POI 5.3.0 and its transitive dependencies) automatically. The `fglpkg.lock` file is created alongside `fglpkg.json` to pin exact versions for reproducible installs across machines.
+The package manager resolves and downloads both the compiled BDL modules and all required Java dependencies (Apache POI 5.5.1 and its transitive dependencies) automatically. The `fglpkg-lock.json` file is created alongside `fglpkg.json` to pin exact versions for reproducible installs across machines.
 
 #### Step 5: Verify the installation
 
@@ -130,25 +130,30 @@ The `poiapi` package declares its Java dependencies in its own `fglpkg.json`. Wh
 
 | Library | Version | Purpose |
 |---------|---------|---------|
-| poi | 5.3.0 | Base POI library |
-| poi-ooxml | 5.3.0 | OOXML support for .xlsx format |
-| poi-ooxml-lite | 5.3.0 | Lightweight OOXML schemas |
-| xmlbeans | 5.2.2 | XML binding layer |
-| commons-compress | 1.27.1 | ZIP/package handling |
+| poi | 5.5.1 | Base POI library |
+| poi-ooxml | 5.5.1 | OOXML support for .xlsx format |
+| poi-ooxml-lite | 5.5.1 | Lightweight OOXML schemas |
+| xmlbeans | 5.3.0 | XML binding layer |
+| SparseBitSet | 1.3 | Sparse bit set used by POI |
+| commons-compress | 1.28.0 | ZIP/package handling |
 | commons-collections4 | 4.5.0 | Utility collections |
 | commons-math3 | 3.6.1 | Math utilities |
-| log4j-api | 2.17.1 | Logging facade |
-| commons-io | 2.18.0 | I/O utilities |
+| log4j-api | 2.26.1 | Logging facade |
+| commons-io | 2.21.0 | I/O utilities |
 | curvesapi | 1.08 | Curve/spline math |
-| commons-codec | 1.17.2 | Encoding utilities |
+| commons-codec | 1.20.0 | Encoding utilities |
 
 You do not need to download or manage any of these manually.
+
+> The versions above are those pinned by poiapi 1.8.0. `fglpkg.json` in this
+> repository is the authoritative list — check it there if this table and the
+> package disagree.
 
 ### Manual Installation
 
 If you are not using `fglpkg`, you can install the dependencies manually:
 
-1. Download the Apache POI 5.3.0 libraries and all transitive dependencies listed above from [Maven Central](https://search.maven.org/) or the [Apache POI website](https://poi.apache.org/)
+1. Download the Apache POI 5.5.1 libraries and all transitive dependencies listed above from [Maven Central](https://search.maven.org/) or the [Apache POI website](https://poi.apache.org/)
 2. Add all JAR files to your `CLASSPATH` environment variable
 3. Copy the compiled `.42m` files from `com/fourjs/poiapi/` to a directory on your `FGLLDPATH`
 
