@@ -520,6 +520,19 @@ PRIVATE FUNCTION excelFormatModesExample() RETURNS ()
 	CALL fgl_spreadsheet_helper.setMoneyFormat("[$GBP-809]#,##0.00;[Red]([$GBP-809]#,##0.00)")
 	IF NOT createFormatSheet(excelHandler, "Money code") THEN RETURN END IF
 
+	#Naming a locale drives the same fallback that an unset DBDATE and DBMONEY
+	#would reach, without having to change the machine to try it. Everything
+	#else is back to the defaults so that the locale alone decides.
+	CALL fgl_spreadsheet_helper.clearFormatOverrides()
+	CALL fgl_spreadsheet_helper.setLocale("en-GB")
+	IF NOT createFormatSheet(excelHandler, "Locale en-GB") THEN RETURN END IF
+
+	CALL fgl_spreadsheet_helper.setLocale("de-DE")
+	IF NOT createFormatSheet(excelHandler, "Locale de-DE") THEN RETURN END IF
+
+	CALL fgl_spreadsheet_helper.setLocale("ja-JP")
+	IF NOT createFormatSheet(excelHandler, "Locale ja-JP") THEN RETURN END IF
+
 	CALL excelHandler.createFile()
 
 	#Put the helper back as it was found. These settings are module-wide, so
@@ -546,9 +559,10 @@ PRIVATE FUNCTION createFormatSheet(excelHandler fgl_spreadsheet_xapi.TSpreadshee
 	CALL excelHandler.setGroupFooterLabel("%1 subtotal")
 
 	CALL excelHandler.addSubTitle(
-		SFMT("Format mode: %1 (generation %2)",
+		SFMT("Format mode: %1 (generation %2)   Locale: %3",
 			fgl_spreadsheet_helper.getFormatMode(),
-			fgl_spreadsheet_helper.getFormatGeneration()))
+			fgl_spreadsheet_helper.getFormatGeneration(),
+			NVL(fgl_spreadsheet_helper.getLocale(), "<none>")))
 	CALL excelHandler.addSubTitle(
 		SFMT("DATE [%1]   MONEY(12,2) [%2]",
 			NVL(fgl_spreadsheet_helper.getDateFormat(), cViewerDecides),

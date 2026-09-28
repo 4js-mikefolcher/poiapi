@@ -165,12 +165,12 @@ The package automatically applies Excel formatting based on Genero data types:
 
 | Genero Type | Excel Format |
 |-------------|--------------|
-| `MONEY(p,s)` | Currency, symbol from `DBFORMAT`/`DBMONEY` (e.g., `"EUR"#,##0.00`) |
+| `MONEY(p,s)` | Currency, symbol from `DBFORMAT`/`DBMONEY`, else the machine's locale |
 | `DECIMAL(p,s)` | Numeric with the precision and scale of the column (e.g., `#,##0.0000`) |
 | `DECIMAL`, `DECIMAL(p)` | Numeric with a floating decimal part (`#,##0.######`) |
 | `INTEGER`, `SMALLINT` | Integer |
 | `FLOAT`, `SMALLFLOAT` | Decimal |
-| `DATE` | Date in `DBDATE` order (e.g., `dd"/"mm"/"yyyy`) |
+| `DATE` | Date in `DBDATE` order, else the machine's locale (e.g., `dd"/"mm"/"yyyy`) |
 | `DATETIME YEAR TO ...` | The same date format, plus a 24-hour time |
 | `DATETIME HOUR TO ...` | Time only, 24-hour (e.g., `hh:mm:ss`) |
 | `STRING`, `VARCHAR`, `CHAR` | Plain text |
@@ -187,7 +187,22 @@ the same column reads on screen:
 | `DBFORMAT` | The currency symbol and whether it leads or trails the value |
 | `DBMONEY` | The currency symbol, when `DBFORMAT` is not set |
 
-Each of these is written into the workbook as an explicit Excel format code, so
+These are usually left unset, and Genero then formats to United States
+conventions on any machine — it ignores `LC_TIME`, `LC_NUMERIC` and
+`LC_MONETARY`. Exporting a US date from a machine that is plainly not in the US
+is rarely what anyone wants, so the package looks further:
+
+1. An explicit format code, from the override functions below
+2. `DBDATE`, `DBFORMAT` and `DBMONEY`, whenever they are set
+3. The locale of the machine the program runs on — `LC_ALL`, `LC_MONETARY`,
+   `LC_TIME` and `LANG`, and then the JVM's own default locale
+4. Genero's United States default, if nothing above says anything
+
+Setting `DBDATE` and `DBMONEY` is still worth doing, and not only for the
+export: they are what the *application* formats with, so setting them is what
+makes a form on screen and the spreadsheet beside it agree.
+
+Each format is written into the workbook as an explicit Excel format code, so
 every machine that opens the file sees the same thing.
 
 > **Why this matters.** Excel resolves a *built-in* format id — `14` for dates,
@@ -229,6 +244,27 @@ CALL fgl_spreadsheet_helper.setFormatMode(fgl_spreadsheet_helper.cFormatModeView
 CALL fgl_spreadsheet_helper.setFormatMode(fgl_spreadsheet_helper.cFormatModeISO)
 ```
 
+**Choosing the locale** — `setLocale()` drives step 3 above directly. It takes a
+language tag, and `"en-GB"`, `"de_DE"` and `"en_IE.UTF-8"` are all understood:
+
+```4gl
+-- Export in a locale other than the server's
+CALL fgl_spreadsheet_helper.setLocale("de-DE")   -- dd"."mm"."yyyy and a leading €
+
+-- Back to the locale of the machine
+CALL fgl_spreadsheet_helper.setLocale(NULL)
+```
+
+`getLocale()` returns the tag actually in force, resolved. This is also the
+dependable way to **test** a locale: a JVM does not always follow `LANG` or
+`LC_ALL` — on macOS it commonly reports `en_US` whatever they are set to — so
+naming the locale is more reliable than changing the machine.
+
+> The currency symbol is subject to the application locale, exactly as the one
+> in `DBMONEY` is: a symbol such as `£` or `€` needs a character set that can
+> represent it, so run under a UTF-8 locale. Under an ASCII locale the symbol
+> is written as `?`.
+
 **Explicit format codes** — these override the mode for one type of column. Pass
 `NULL` to go back to the mode's own format.
 
@@ -239,7 +275,8 @@ CALL fgl_spreadsheet_helper.setFormatMode(fgl_spreadsheet_helper.cFormatModeISO)
 | `setTimeFormat(code)` | `DATETIME HOUR TO ...` columns |
 | `setMoneyFormat(code)` | `MONEY` columns, symbol and decimal places both |
 | `setCurrencySymbol(symbol)` | The currency symbol only, keeping the column's decimal places |
-| `clearFormatOverrides()` | Drops every override above |
+| `setLocale(tag)` | The locale the date and currency fallbacks read; `NULL` for the machine's |
+| `clearFormatOverrides()` | Drops every override above, `setLocale()` included |
 
 ```4gl
 -- A fixed date format, whatever DBDATE says
@@ -271,6 +308,7 @@ The codes are Excel number format codes, written into the workbook as given.
 | `getDatetimeFormat(type)` | The code for a `DATETIME YEAR TO ...` type |
 | `getTimeFormat(type)` | The code for a `DATETIME HOUR TO ...` type |
 | `getMoneyFormat(type)` | The code for a `MONEY` type |
+| `getLocale()` | The language tag in force for the locale fallback, resolved |
 | `getFormatGeneration()` | A counter bumped on every format change, for callers caching cell styles across spreadsheets |
 
 ---

@@ -2,6 +2,13 @@ PACKAGE com.fourjs.poiapi
 IMPORT util
 IMPORT FGL com.fourjs.poiapi.fgl_excel
 
+IMPORT JAVA java.util.Locale
+IMPORT JAVA java.text.DateFormat
+IMPORT JAVA java.text.SimpleDateFormat
+IMPORT JAVA java.text.NumberFormat
+IMPORT JAVA java.text.DecimalFormat
+IMPORT JAVA java.text.DecimalFormatSymbols
+
 PUBLIC TYPE TFields RECORD
 	fieldName   STRING,
 	fieldType   STRING
@@ -75,6 +82,10 @@ PRIVATE DEFINE envCurrencySymbol STRING
 PRIVATE DEFINE envCurrencyIsFront BOOLEAN
 PRIVATE DEFINE envCurrencyRead BOOLEAN
 
+#An explicit locale for the machine-locale fallback, as a language tag such
+#as "en-GB". NULL means the machine's own locale is used.
+PRIVATE DEFINE ovLocale STRING
+
 #Selects how date, time and monetary cells are formatted. Pass one of
 #cFormatModeLocale (the default), cFormatModeViewer or cFormatModeISO.
 #Call before building a spreadsheet.
@@ -133,6 +144,33 @@ PUBLIC FUNCTION setCurrencySymbol(symbol STRING) RETURNS ()
    CALL invalidateFormats()
 END FUNCTION #setCurrencySymbol
 
+#Overrides the locale that the date and currency formats fall back to when
+#DBDATE, DBFORMAT and DBMONEY say nothing. Takes a language tag - "en-GB",
+#"de-DE", "fr_FR" and "en_IE.UTF-8" are all understood. Pass NULL to go back
+#to the locale of the machine the program is running on.
+#
+#Useful for exporting in a locale other than the server's, and for testing a
+#locale without changing the machine: the JVM does not always follow LANG or
+#LC_ALL, so this is the dependable way to choose one.
+PUBLIC FUNCTION setLocale(languageTag STRING) RETURNS ()
+   LET ovLocale = languageTag
+   CALL invalidateFormats()
+END FUNCTION #setLocale
+
+#The language tag in force for that fallback, resolved to what is actually
+#being used. NULL when no locale could be established at all.
+PUBLIC FUNCTION getLocale() RETURNS STRING
+   DEFINE loc Locale
+
+   LET loc = resolveLocale()
+   IF loc IS NULL THEN
+      RETURN NULL
+   END IF
+
+   RETURN loc.toLanguageTag()
+
+END FUNCTION #getLocale
+
 #Drops every explicit format code and goes back to the current mode.
 PUBLIC FUNCTION clearFormatOverrides() RETURNS ()
    LET ovDateFormat = NULL
@@ -140,6 +178,7 @@ PUBLIC FUNCTION clearFormatOverrides() RETURNS ()
    LET ovTimeFormat = NULL
    LET ovMoneyFormat = NULL
    LET ovCurrencySymbol = NULL
+   LET ovLocale = NULL
    CALL invalidateFormats()
 END FUNCTION #clearFormatOverrides
 
@@ -187,6 +226,218 @@ PRIVATE FUNCTION splitFields(source STRING, delimiter STRING) RETURNS DYNAMIC AR
 
 END FUNCTION #splitFields
 
+#------------------------------------------------------------------------------
+# Reading the machine's own locale
+#
+# DBDATE, DBFORMAT and DBMONEY are usually left unset, and Genero then formats
+# to United States conventions whatever machine it is running on - it ignores
+# LC_TIME, LC_NUMERIC and LC_MONETARY. Falling back to that here would export a
+# US date from a machine that is plainly not in the US, so the machine's own
+# locale is asked first, through the JVM the package already runs on.
+#------------------------------------------------------------------------------
+
+#Turns a POSIX locale string - "en_IE.UTF-8", "de_DE@euro", "fr-FR" - into a
+#language tag the JVM understands. Returns NULL for "C" and "POSIX", which
+#name no country and so imply no date or currency conventions.
+PRIVATE FUNCTION posixToLanguageTag(value STRING) RETURNS STRING
+   DEFINE work STRING
+   DEFINE idx INTEGER
+
+   IF value IS NULL OR value.getLength() == 0 THEN
+      RETURN NULL
+   END IF
+   LET work = value.trim()
+
+   #Drop the codeset and any modifier: "en_IE.UTF-8@euro" -> "en_IE"
+   LET idx = work.getIndexOf(".", 1)
+   IF idx > 1 THEN
+      LET work = work.subString(1, idx - 1)
+   END IF
+   LET idx = work.getIndexOf("@", 1)
+   IF idx > 1 THEN
+      LET work = work.subString(1, idx - 1)
+   END IF
+
+   IF work.equalsIgnoreCase("C") OR work.equalsIgnoreCase("POSIX") THEN
+      RETURN NULL
+   END IF
+
+   #A language tag separates the territory with a hyphen, POSIX with "_"
+   LET work = work.replaceAll("_", "-")
+   IF work.getLength() == 0 THEN
+      RETURN NULL
+   END IF
+
+   RETURN work
+
+END FUNCTION #posixToLanguageTag
+
+#The locale the date and currency fallbacks read. An explicit setLocale() wins;
+#otherwise the POSIX environment, which is what an administrator actually sets
+#and which the JVM does not always pick up; otherwise the JVM's own default.
+PRIVATE FUNCTION resolveLocale() RETURNS Locale
+   DEFINE tag STRING
+   DEFINE loc Locale
+   DEFINE lang STRING
+   DEFINE idx INTEGER
+   DEFINE envVars DYNAMIC ARRAY OF STRING = ["LC_ALL", "LC_MONETARY", "LC_TIME", "LANG"]
+
+   LET tag = posixToLanguageTag(ovLocale)
+
+   IF tag IS NULL THEN
+      FOR idx = 1 TO envVars.getLength()
+         LET tag = posixToLanguageTag(FGL_GETENV(envVars[idx]))
+         IF tag IS NOT NULL THEN
+            EXIT FOR
+         END IF
+      END FOR
+   END IF
+
+   TRY
+      IF tag IS NULL THEN
+         #Nothing in the environment: the JVM may still know, which is the
+         #usual case on Windows and on a desktop-launched program
+         RETURN Locale.getDefault()
+      END IF
+      LET loc = Locale.forLanguageTag(tag)
+      #forLanguageTag() hands back the root locale for a tag it cannot read,
+      #whose language is empty - fall back rather than format from nothing
+      LET lang = loc.getLanguage()
+      IF lang IS NULL OR lang.getLength() == 0 THEN
+         RETURN Locale.getDefault()
+      END IF
+   CATCH
+      RETURN NULL
+   END TRY
+
+   RETURN loc
+
+END FUNCTION #resolveLocale
+
+#Translates a Java date pattern - "dd/MM/yyyy", "M/d/yy" - into an Excel
+#format code. Years are always widened to four digits: a two digit year is
+#ambiguous in a file that will outlive the conversation about it.
+PRIVATE FUNCTION javaPatternToExcel(pattern STRING) RETURNS STRING
+   DEFINE code STRING
+   DEFINE idx INTEGER = 1
+   DEFINE runStart INTEGER
+   DEFINE currChr STRING
+   DEFINE literal STRING
+
+   IF pattern IS NULL OR pattern.getLength() == 0 THEN
+      RETURN NULL
+   END IF
+
+   WHILE idx <= pattern.getLength()
+      LET currChr = pattern.getCharAt(idx)
+      CASE
+         WHEN currChr == "'"
+            #A quoted run of literal text, and "''" is one apostrophe
+            LET idx = idx + 1
+            LET literal = NULL
+            WHILE idx <= pattern.getLength() AND pattern.getCharAt(idx) != "'"
+               LET literal = literal.append(pattern.getCharAt(idx))
+               LET idx = idx + 1
+            END WHILE
+            IF literal IS NOT NULL THEN
+               LET code = code.append("\"").append(literal).append("\"")
+            END IF
+            LET idx = idx + 1
+
+         WHEN currChr == "d" OR currChr == "M" OR currChr == "y"
+            LET runStart = idx
+            WHILE idx <= pattern.getLength() AND pattern.getCharAt(idx) == currChr
+               LET idx = idx + 1
+            END WHILE
+            CASE currChr
+               WHEN "d"
+                  LET code = code.append("dd")
+               WHEN "M"
+                  LET code = code.append("mm")
+               WHEN "y"
+                  LET code = code.append("yyyy")
+            END CASE
+
+         WHEN currChr MATCHES "[A-Za-z]"
+            #An era, day name or anything else Excel has no equivalent for
+            RETURN NULL
+
+         OTHERWISE
+            #A separator. Quote it so that it survives the viewer's settings,
+            #the same as the separator taken from DBDATE.
+            LET code = code.append("\"").append(currChr).append("\"")
+            LET idx = idx + 1
+      END CASE
+   END WHILE
+
+   RETURN code
+
+END FUNCTION #javaPatternToExcel
+
+#The Excel date format code of the machine's locale, or NULL when the JVM
+#cannot offer one in a shape Excel understands.
+PRIVATE FUNCTION machineDateCode() RETURNS STRING
+   DEFINE loc Locale
+   DEFINE df DateFormat
+   DEFINE sdf SimpleDateFormat
+   DEFINE code STRING
+
+   TRY
+      LET loc = resolveLocale()
+      IF loc IS NULL THEN
+         RETURN NULL
+      END IF
+      LET df = DateFormat.getDateInstance(DateFormat.SHORT, loc)
+      LET sdf = CAST(df AS SimpleDateFormat)
+      LET code = javaPatternToExcel(sdf.toPattern())
+   CATCH
+      RETURN NULL
+   END TRY
+
+   RETURN code
+
+END FUNCTION #machineDateCode
+
+#The currency symbol of the machine's locale, and whether it leads the value.
+PRIVATE FUNCTION machineCurrency() RETURNS (STRING, BOOLEAN)
+   DEFINE loc Locale
+   DEFINE nf NumberFormat
+   DEFINE dfm DecimalFormat
+   DEFINE syms DecimalFormatSymbols
+   DEFINE symbol STRING
+   DEFINE pattern STRING
+   DEFINE symbolPos INTEGER
+   DEFINE digitPos INTEGER
+
+   TRY
+      LET loc = resolveLocale()
+      IF loc IS NULL THEN
+         RETURN NULL, TRUE
+      END IF
+      LET syms = DecimalFormatSymbols.getInstance(loc)
+      LET symbol = syms.getCurrencySymbol()
+
+      #The currency pattern puts the placeholder either side of the digits
+      LET nf = NumberFormat.getCurrencyInstance(loc)
+      LET dfm = CAST(nf AS DecimalFormat)
+      LET pattern = dfm.toPattern()
+      LET symbolPos = pattern.getIndexOf("\u00A4", 1)
+      LET digitPos = pattern.getIndexOf("#", 1)
+      IF digitPos == 0 THEN
+         LET digitPos = pattern.getIndexOf("0", 1)
+      END IF
+   CATCH
+      RETURN NULL, TRUE
+   END TRY
+
+   IF symbol IS NULL OR symbol.getLength() == 0 THEN
+      RETURN NULL, TRUE
+   END IF
+
+   RETURN symbol, (symbolPos == 0 OR digitPos == 0 OR symbolPos < digitPos)
+
+END FUNCTION #machineCurrency
+
 #The Excel date format code implied by DBDATE. DBDATE is
 #  { DM | MD } { Y2 | Y3 | Y4 } { / | - | . | 0 } [C1]
 #  { Y2 | Y3 | Y4 } { DM | MD } { / | - | . | 0 } [C1]
@@ -208,7 +459,12 @@ PRIVATE FUNCTION dateCodeFromDBDATE() RETURNS STRING
 
    LET work = FGL_GETENV("DBDATE")
    IF work IS NULL OR work.getLength() == 0 THEN
-      #Desktop and server platforms default to the United States format
+      #DBDATE says nothing, so the machine's own locale decides
+      LET envDateCode = machineDateCode()
+      IF envDateCode IS NOT NULL THEN
+         RETURN envDateCode
+      END IF
+      #Nothing to go on: Genero's desktop and server default
       LET work = "MDY4/"
    END IF
    LET work = work.toUpperCase()
@@ -349,7 +605,13 @@ PRIVATE FUNCTION readCurrencyFromEnv() RETURNS ()
       RETURN
    END IF
 
-   #Neither is set: desktop and server platforms default to a leading dollar
+   #Neither is set, so the machine's own locale decides
+   CALL machineCurrency() RETURNING envCurrencySymbol, envCurrencyIsFront
+   IF envCurrencySymbol IS NOT NULL AND envCurrencySymbol.getLength() > 0 THEN
+      RETURN
+   END IF
+
+   #Nothing to go on: Genero's desktop and server default
    LET envCurrencySymbol = "$"
    LET envCurrencyIsFront = TRUE
 
