@@ -73,6 +73,7 @@
       <File filePath="src/fgl_excel_api_test.4gl"/>
       <File filePath="src/fgl_excel_form.per"/>
       <File filePath="src/fgl_excel_form_xtend.per"/>
+      <File filePath="src/fgl_excel_locale_picker.per"/>
       <File filePath="src/fgl_excel_menu_table.per"/>
     </Application>
   </Group>
